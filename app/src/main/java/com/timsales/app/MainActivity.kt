@@ -1,11 +1,14 @@
 package com.timsales.app
 
 import android.os.Bundle
+import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -29,6 +32,7 @@ private val Panel = Color(0xFF1C241F)
 private val Green = Color(0xFF42D392)
 private val White = Color(0xFFF2F5F3)
 private val Muted = Color(0xFF9AA69E)
+private val Red = Color(0xFFFF7777)
 
 data class Product(
     val id: Int,
@@ -47,6 +51,28 @@ data class Appointment(
     val status: String = "Предстоящая"
 )
 
+data class Sale(
+    val id: Int,
+    val date: String,
+    val productName: String,
+    val quantity: Int,
+    val buyPrice: Double,
+    val sellPrice: Double,
+    val deliveryFee: Double
+) {
+    val revenue: Double
+        get() = sellPrice * quantity
+
+    val cost: Double
+        get() = buyPrice * quantity
+
+    val productProfit: Double
+        get() = revenue - cost
+
+    val totalProfit: Double
+        get() = productProfit + deliveryFee
+}
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +80,10 @@ class MainActivity : ComponentActivity() {
             TimSalesApp()
         }
     }
+}
+
+fun money(value: Double): String {
+    return String.format(Locale.US, "%.2f", value)
 }
 
 fun dateText(millis: Long): String {
@@ -72,7 +102,7 @@ fun dateMillis(value: String): Long {
     }
 }
 
-fun loadProducts(context: android.content.Context): List<Product> {
+fun loadProducts(context: Context): List<Product> {
     val prefs = context.getSharedPreferences("timsales", 0)
     val json = prefs.getString("products", "[]") ?: "[]"
     val result = mutableListOf<Product>()
@@ -83,10 +113,10 @@ fun loadProducts(context: android.content.Context): List<Product> {
             val item = array.getJSONObject(i)
             result.add(
                 Product(
-                    id = item.getInt("id"),
-                    name = item.getString("name"),
-                    buyPrice = item.getDouble("buyPrice"),
-                    sellPrice = item.getDouble("sellPrice")
+                    item.getInt("id"),
+                    item.getString("name"),
+                    item.getDouble("buyPrice"),
+                    item.getDouble("sellPrice")
                 )
             )
         }
@@ -97,7 +127,7 @@ fun loadProducts(context: android.content.Context): List<Product> {
     return result
 }
 
-fun loadAppointments(context: android.content.Context): List<Appointment> {
+fun loadAppointments(context: Context): List<Appointment> {
     val prefs = context.getSharedPreferences("timsales", 0)
     val json = prefs.getString("appointments", "[]") ?: "[]"
     val result = mutableListOf<Appointment>()
@@ -108,13 +138,41 @@ fun loadAppointments(context: android.content.Context): List<Appointment> {
             val item = array.getJSONObject(i)
             result.add(
                 Appointment(
+                    item.getInt("id"),
+                    item.getString("client"),
+                    item.getString("date"),
+                    item.getString("time"),
+                    item.getString("place"),
+                    item.getString("products"),
+                    item.optString("status", "Предстоящая")
+                )
+            )
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+
+    return result
+}
+
+fun loadSales(context: Context): List<Sale> {
+    val prefs = context.getSharedPreferences("timsales", 0)
+    val json = prefs.getString("sales", "[]") ?: "[]"
+    val result = mutableListOf<Sale>()
+
+    try {
+        val array = JSONArray(json)
+        for (i in 0 until array.length()) {
+            val item = array.getJSONObject(i)
+            result.add(
+                Sale(
                     id = item.getInt("id"),
-                    client = item.getString("client"),
                     date = item.getString("date"),
-                    time = item.getString("time"),
-                    place = item.getString("place"),
-                    products = item.getString("products"),
-                    status = item.optString("status", "Предстоящая")
+                    productName = item.getString("productName"),
+                    quantity = item.getInt("quantity"),
+                    buyPrice = item.getDouble("buyPrice"),
+                    sellPrice = item.getDouble("sellPrice"),
+                    deliveryFee = item.optDouble("deliveryFee", 0.0)
                 )
             )
         }
@@ -126,35 +184,49 @@ fun loadAppointments(context: android.content.Context): List<Appointment> {
 }
 
 fun saveData(
-    context: android.content.Context,
+    context: Context,
     products: List<Product>,
-    appointments: List<Appointment>
+    appointments: List<Appointment>,
+    sales: List<Sale>
 ) {
     val productsArray = JSONArray()
-
-    products.forEach { product ->
+    products.forEach { p ->
         productsArray.put(
             JSONObject().apply {
-                put("id", product.id)
-                put("name", product.name)
-                put("buyPrice", product.buyPrice)
-                put("sellPrice", product.sellPrice)
+                put("id", p.id)
+                put("name", p.name)
+                put("buyPrice", p.buyPrice)
+                put("sellPrice", p.sellPrice)
             }
         )
     }
 
     val appointmentsArray = JSONArray()
-
-    appointments.forEach { appointment ->
+    appointments.forEach { a ->
         appointmentsArray.put(
             JSONObject().apply {
-                put("id", appointment.id)
-                put("client", appointment.client)
-                put("date", appointment.date)
-                put("time", appointment.time)
-                put("place", appointment.place)
-                put("products", appointment.products)
-                put("status", appointment.status)
+                put("id", a.id)
+                put("client", a.client)
+                put("date", a.date)
+                put("time", a.time)
+                put("place", a.place)
+                put("products", a.products)
+                put("status", a.status)
+            }
+        )
+    }
+
+    val salesArray = JSONArray()
+    sales.forEach { s ->
+        salesArray.put(
+            JSONObject().apply {
+                put("id", s.id)
+                put("date", s.date)
+                put("productName", s.productName)
+                put("quantity", s.quantity)
+                put("buyPrice", s.buyPrice)
+                put("sellPrice", s.sellPrice)
+                put("deliveryFee", s.deliveryFee)
             }
         )
     }
@@ -163,6 +235,7 @@ fun saveData(
         .edit()
         .putString("products", productsArray.toString())
         .putString("appointments", appointmentsArray.toString())
+        .putString("sales", salesArray.toString())
         .apply()
 }
 
@@ -183,6 +256,12 @@ fun TimSalesApp() {
         }
     }
 
+    val sales = remember {
+        mutableStateListOf<Sale>().apply {
+            addAll(loadSales(context))
+        }
+    }
+
     var nextProductId by remember {
         mutableIntStateOf((products.maxOfOrNull { it.id } ?: 0) + 1)
     }
@@ -191,12 +270,16 @@ fun TimSalesApp() {
         mutableIntStateOf((appointments.maxOfOrNull { it.id } ?: 0) + 1)
     }
 
-    var page by remember {
-        mutableStateOf("Планировщик")
+    var nextSaleId by remember {
+        mutableIntStateOf((sales.maxOfOrNull { it.id } ?: 0) + 1)
     }
 
-    LaunchedEffect(products.toList(), appointments.toList()) {
-        saveData(context, products, appointments)
+    var page by remember {
+        mutableStateOf("Главная")
+    }
+
+    LaunchedEffect(products.toList(), appointments.toList(), sales.toList()) {
+        saveData(context, products, appointments, sales)
     }
 
     MaterialTheme(
@@ -212,16 +295,14 @@ fun TimSalesApp() {
         Scaffold(
             containerColor = Bg,
             bottomBar = {
-                NavigationBar(
-                    containerColor = Panel
-                ) {
+                NavigationBar(containerColor = Panel) {
                     val pages = listOf(
+                        "Главная",
                         "План",
                         "Товары",
                         "Продажи",
                         "Долги",
-                        "Статистика",
-                        "Главная"
+                        "Стата"
                     )
 
                     pages.forEach { item ->
@@ -231,18 +312,18 @@ fun TimSalesApp() {
                             icon = {
                                 Text(
                                     when (item) {
+                                        "Главная" -> "⌂"
                                         "План" -> "📅"
                                         "Товары" -> "📦"
                                         "Продажи" -> "💰"
                                         "Долги" -> "🧾"
-                                        "Статистика" -> "📊"
-                                        else -> "🏠"
+                                        else -> "📊"
                                     },
                                     fontSize = 17.sp
                                 )
                             },
                             label = {
-                                Text(item, fontSize = 9.sp)
+                                Text(item, fontSize = 9.sp, maxLines = 1)
                             },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = Green,
@@ -261,20 +342,27 @@ fun TimSalesApp() {
                     .fillMaxSize()
                     .padding(padding)
                     .background(Bg)
+                    .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
                 when (page) {
+                    "Главная" -> HomeScreen(
+                        appointments = appointments,
+                        sales = sales,
+                        onOpenPlanner = { page = "План" }
+                    )
+
                     "План" -> PlannerScreen(
                         appointments = appointments,
                         onAdd = { client, date, time, place, productsText ->
                             appointments.add(
                                 Appointment(
-                                    id = nextAppointmentId++,
-                                    client = client,
-                                    date = date,
-                                    time = time,
-                                    place = place,
-                                    products = productsText
+                                    nextAppointmentId++,
+                                    client,
+                                    date,
+                                    time,
+                                    place,
+                                    productsText
                                 )
                             )
                         },
@@ -282,9 +370,7 @@ fun TimSalesApp() {
                             val index = appointments.indexOfFirst {
                                 it.id == updated.id
                             }
-                            if (index >= 0) {
-                                appointments[index] = updated
-                            }
+                            if (index >= 0) appointments[index] = updated
                         }
                     )
 
@@ -292,51 +378,143 @@ fun TimSalesApp() {
                         products = products,
                         onAdd = { name, buy, sell ->
                             products.add(
-                                Product(
-                                    nextProductId++,
-                                    name,
-                                    buy,
-                                    sell
-                                )
+                                Product(nextProductId++, name, buy, sell)
                             )
                         },
                         onUpdate = { updated ->
                             val index = products.indexOfFirst {
                                 it.id == updated.id
                             }
-                            if (index >= 0) {
-                                products[index] = updated
-                            }
+                            if (index >= 0) products[index] = updated
                         },
-                        onDelete = { product ->
-                            products.remove(product)
-                        }
+                        onDelete = { products.remove(it) }
                     )
 
-                    "Продажи" -> SimpleScreen(
-                        "Продажи",
-                        "Здесь появится добавление продаж, расчёт выручки и прибыли."
+                    "Продажи" -> SalesScreen(
+                        products = products,
+                        sales = sales,
+                        onAdd = { name, quantity, buy, sell, delivery ->
+                            sales.add(
+                                Sale(
+                                    nextSaleId++,
+                                    dateText(System.currentTimeMillis()),
+                                    name,
+                                    quantity,
+                                    buy,
+                                    sell,
+                                    delivery
+                                )
+                            )
+                        },
+                        onUpdate = { updated ->
+                            val index = sales.indexOfFirst {
+                                it.id == updated.id
+                            }
+                            if (index >= 0) sales[index] = updated
+                        },
+                        onDelete = { sales.remove(it) }
                     )
 
                     "Долги" -> SimpleScreen(
                         "Долги",
-                        "Здесь появится учёт задолженностей и погашений."
+                        "Учёт задолженностей добавим следующим этапом."
                     )
 
-                    "Статистика" -> SimpleScreen(
-                        "Статистика",
-                        "Здесь появится статистика выручки и прибыли."
-                    )
-
-                    else -> SimpleScreen(
-                        "Главная",
-                        "Товаров: ${products.size}\nПредстоящих встреч: ${
-                            appointments.count { it.status == "Предстоящая" }
-                        }\n\nФинансовая статистика появится после добавления раздела продаж."
-                    )
+                    "Стата" -> StatisticsScreen(sales)
                 }
             }
         }
+    }
+}
+
+@Composable
+fun HomeScreen(
+    appointments: List<Appointment>,
+    sales: List<Sale>,
+    onOpenPlanner: () -> Unit
+) {
+    val upcoming = appointments.filter {
+        it.status == "Предстоящая"
+    }
+
+    val revenue = sales.sumOf { it.revenue }
+    val cost = sales.sumOf { it.cost }
+    val delivery = sales.sumOf { it.deliveryFee }
+    val profit = sales.sumOf { it.totalProfit }
+
+    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        Text(
+            "TimSales",
+            color = Green,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text("Обзор бизнеса", color = Muted)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            MetricCard("Выручка", revenue, Modifier.weight(1f))
+            MetricCard("Прибыль", profit, Modifier.weight(1f))
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            MetricCard("Себестоимость", cost, Modifier.weight(1f))
+            MetricCard("Доставка", delivery, Modifier.weight(1f))
+        }
+
+        Spacer(Modifier.height(5.dp))
+
+        Text(
+            "Предстоящие встречи",
+            color = Green,
+            fontSize = 21.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        TextButton(onClick = onOpenPlanner) {
+            Text("Открыть планировщик →", color = Green)
+        }
+
+        if (upcoming.isEmpty()) {
+            Text("Запланированных встреч пока нет.", color = Muted)
+        } else {
+            upcoming.sortedBy { dateMillis(it.date) }.forEach { appointment ->
+                AppointmentCard(
+                    appointment = appointment,
+                    onEdit = onOpenPlanner,
+                    onComplete = {},
+                    onCancel = {},
+                    historyMode = true
+                )
+            }
+        }
+
+        Text(
+            "Всего продаж: ${sales.size}",
+            color = Muted
+        )
+    }
+}
+
+@Composable
+fun MetricCard(
+    label: String,
+    amount: Double,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .background(Panel, RoundedCornerShape(15.dp))
+            .padding(13.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(label, color = Muted, fontSize = 12.sp)
+        Text(
+            "${money(amount)} AZN",
+            color = Green,
+            fontSize = 17.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -357,9 +535,7 @@ fun PlannerScreen(
         it.status != "Предстоящая"
     }
 
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
             "Планировщик",
             color = Green,
@@ -367,10 +543,7 @@ fun PlannerScreen(
             fontWeight = FontWeight.Bold
         )
 
-        Text(
-            "Предстоящие встречи: ${upcoming.size}",
-            color = Muted
-        )
+        Text("Предстоящие встречи: ${upcoming.size}", color = Muted)
 
         Button(
             onClick = {
@@ -387,13 +560,10 @@ fun PlannerScreen(
         }
 
         if (upcoming.isEmpty()) {
-            Text(
-                "Пока нет запланированных встреч.",
-                color = Muted
-            )
+            Text("Пока нет запланированных встреч.", color = Muted)
         }
 
-        upcoming.forEach { appointment ->
+        upcoming.sortedBy { dateMillis(it.date) }.forEach { appointment ->
             AppointmentCard(
                 appointment = appointment,
                 onEdit = {
@@ -484,408 +654,4 @@ fun AppointmentCard(
             color = White
         )
 
-        if (appointment.place.isNotBlank()) {
-            Text("Место: ${appointment.place}", color = Muted)
-        }
-
-        if (appointment.products.isNotBlank()) {
-            Text("Товары: ${appointment.products}", color = Muted)
-        }
-
-        Text(
-            "Статус: ${appointment.status}",
-            color = if (appointment.status == "Завершена") Green else Muted
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            OutlinedButton(
-                onClick = onEdit,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text("Изменить", fontSize = 11.sp)
-            }
-
-            if (!historyMode) {
-                OutlinedButton(
-                    onClick = onComplete,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Готово", fontSize = 11.sp)
-                }
-
-                OutlinedButton(
-                    onClick = onCancel,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text("Отмена", fontSize = 11.sp)
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun AppointmentForm(
-    initial: Appointment?,
-    onDismiss: () -> Unit,
-    onSave: (String, String, String, String, String) -> Unit
-) {
-    var client by remember(initial) {
-        mutableStateOf(initial?.client ?: "")
-    }
-
-    var selectedDate by remember(initial) {
-        mutableLongStateOf(
-            dateMillis(initial?.date ?: dateText(System.currentTimeMillis()))
-        )
-    }
-
-    var time by remember(initial) {
-        mutableStateOf(initial?.time ?: "")
-    }
-
-    var place by remember(initial) {
-        mutableStateOf(initial?.place ?: "")
-    }
-
-    var productsText by remember(initial) {
-        mutableStateOf(initial?.products ?: "")
-    }
-
-    var showCalendar by remember {
-        mutableStateOf(false)
-    }
-
-    val pickerState = rememberDatePickerState(
-        initialSelectedDateMillis = selectedDate
-    )
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Panel,
-        title = {
-            Text(
-                if (initial == null) "Новая встреча" else "Изменить встречу",
-                color = Green
-            )
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(9.dp)
-            ) {
-                FormField("Имя клиента", client) {
-                    client = it
-                }
-
-                OutlinedButton(
-                    onClick = { showCalendar = true },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        "Дата: ${dateText(selectedDate)}",
-                        color = Green
-                    )
-                }
-
-                FormField("Время (например, 15:30)", time) {
-                    time = it
-                }
-
-                FormField("Место встречи", place) {
-                    place = it
-                }
-
-                FormField("Товары и количество", productsText) {
-                    productsText = it
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (client.isNotBlank()) {
-                        onSave(
-                            client.trim(),
-                            dateText(selectedDate),
-                            time.trim(),
-                            place.trim(),
-                            productsText.trim()
-                        )
-                    }
-                }
-            ) {
-                Text("Сохранить", color = Green)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Назад", color = Muted)
-            }
-        }
-    )
-
-    if (showCalendar) {
-        DatePickerDialog(
-            onDismissRequest = { showCalendar = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        pickerState.selectedDateMillis?.let {
-                            selectedDate = it
-                        }
-                        showCalendar = false
-                    }
-                ) {
-                    Text("Выбрать", color = Green)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showCalendar = false }) {
-                    Text("Назад", color = Muted)
-                }
-            }
-        ) {
-            DatePicker(state = pickerState)
-        }
-    }
-}
-
-@Composable
-fun ProductsScreen(
-    products: SnapshotStateList<Product>,
-    onAdd: (String, Double, Double) -> Unit,
-    onUpdate: (Product) -> Unit,
-    onDelete: (Product) -> Unit
-) {
-    var showForm by remember { mutableStateOf(false) }
-    var editing by remember { mutableStateOf<Product?>(null) }
-
-    Column(
-        verticalArrangement = Arrangement.spacedBy(13.dp)
-    ) {
-        Text(
-            "Справочник товаров",
-            color = Green,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Text(
-            "${products.size} товаров сохранено",
-            color = Muted
-        )
-
-        Button(
-            onClick = {
-                editing = null
-                showForm = true
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Green,
-                contentColor = Bg
-            )
-        ) {
-            Text("+ Добавить товар")
-        }
-
-        if (products.isEmpty()) {
-            Text(
-                "Пока товаров нет. Добавь первый товар.",
-                color = Muted
-            )
-        }
-
-        products.forEach { product ->
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Panel, RoundedCornerShape(16.dp))
-                    .padding(15.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    product.name,
-                    color = Green,
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Text("Закупка: ${product.buyPrice} AZN", color = White)
-                Text("Продажа: ${product.sellPrice} AZN", color = White)
-
-                Text(
-                    "Прибыль с единицы: ${product.sellPrice - product.buyPrice} AZN",
-                    color = Green
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    OutlinedButton(
-                        onClick = {
-                            editing = product
-                            showForm = true
-                        },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text("Изменить")
-                    }
-
-                    OutlinedButton(
-                        onClick = { onDelete(product) },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFFFF7777)
-                        )
-                    ) {
-                        Text("Удалить")
-                    }
-                }
-            }
-        }
-    }
-
-    if (showForm) {
-        ProductForm(
-            initial = editing,
-            onDismiss = { showForm = false },
-            onSave = { name, buy, sell ->
-                if (editing == null) {
-                    onAdd(name, buy, sell)
-                } else {
-                    onUpdate(
-                        editing!!.copy(
-                            name = name,
-                            buyPrice = buy,
-                            sellPrice = sell
-                        )
-                    )
-                }
-                showForm = false
-            }
-        )
-    }
-}
-
-@Composable
-fun ProductForm(
-    initial: Product?,
-    onDismiss: () -> Unit,
-    onSave: (String, Double, Double) -> Unit
-) {
-    var name by remember(initial) {
-        mutableStateOf(initial?.name ?: "")
-    }
-
-    var buyPrice by remember(initial) {
-        mutableStateOf(initial?.buyPrice?.toString() ?: "")
-    }
-
-    var sellPrice by remember(initial) {
-        mutableStateOf(initial?.sellPrice?.toString() ?: "")
-    }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        containerColor = Panel,
-        title = {
-            Text(
-                if (initial == null) "Новый товар" else "Изменить товар",
-                color = Green
-            )
-        },
-        text = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                FormField("Название товара", name) {
-                    name = it
-                }
-
-                FormField("Цена закупки (AZN)", buyPrice) {
-                    buyPrice = it
-                }
-
-                FormField("Цена продажи (AZN)", sellPrice) {
-                    sellPrice = it
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    val buy = buyPrice.replace(",", ".").toDoubleOrNull()
-                    val sell = sellPrice.replace(",", ".").toDoubleOrNull()
-
-                    if (
-                        name.isNotBlank() &&
-                        buy != null &&
-                        sell != null &&
-                        buy >= 0 &&
-                        sell >= 0
-                    ) {
-                        onSave(name.trim(), buy, sell)
-                    }
-                }
-            ) {
-                Text("Сохранить", color = Green)
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Назад", color = Muted)
-            }
-        }
-    )
-}
-
-
-@Composable
-fun FormField(
-    label: String,
-    value: String,
-    singleLine: Boolean = true,
-    keyboardType: KeyboardType = KeyboardType.Text,
-    onValueChange: (String) -> Unit
-) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label) },
-        modifier = Modifier.fillMaxWidth(),
-        singleLine = singleLine,
-        keyboardOptions = KeyboardOptions(
-            keyboardType = keyboardType
-        )
-    )
-}
-
-
-@Composable
-fun SimpleScreen(
-    title: String,
-    description: String
-) {
-    Column(
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Text(
-            title,
-            color = Green,
-            fontSize = 24.sp,
-            fontWeight = FontWeight.Bold
-        )
-
-        Text(
-            description,
-            color = Muted,
-            fontSize = 15.sp
-        )
-    }
-}
+        if (appointment.pl
