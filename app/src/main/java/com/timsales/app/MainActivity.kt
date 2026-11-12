@@ -845,13 +845,14 @@ fun ProductForm(
     )
 }
 
+
 @Composable
 fun FormField(
     label: String,
     value: String,
-    onValueChange: (String) -> Unit,
     singleLine: Boolean = true,
-    keyboardType: KeyboardType = KeyboardType.Text
+    keyboardType: KeyboardType = KeyboardType.Text,
+    onValueChange: (String) -> Unit
 ) {
     OutlinedTextField(
         value = value,
@@ -864,6 +865,7 @@ fun FormField(
         )
     )
 }
+
 
 @Composable
 fun SimpleScreen(
