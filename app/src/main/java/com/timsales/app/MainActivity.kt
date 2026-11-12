@@ -569,10 +569,44 @@ LaunchedEffect(
                         onDelete = { sales.remove(it) }
                     )
 
-                    "Долги" -> SimpleScreen(
-                        "Долги",
-                        "Учёт задолженностей добавим следующим этапом."
-                    )
+                    
+"Долги" -> DebtsScreen(
+    debts = debts,
+    onAdd = { debtor, date, amount, note ->
+        debts.add(
+            Debt(
+                id = nextDebtId++,
+                debtor = debtor,
+                date = date,
+                amount = amount,
+                note = note
+            )
+        )
+    },
+    onUpdate = { updated ->
+        val index = debts.indexOfFirst {
+            it.id == updated.id
+        }
+        if (index >= 0) debts[index] = updated
+    },
+    onDelete = { debts.remove(it) },
+    onAddPayment = { debtId, date, amount ->
+        val index = debts.indexOfFirst {
+            it.id == debtId
+        }
+        if (index >= 0) {
+            val debt = debts[index]
+            debts[index] = debt.copy(
+                payments = debt.payments + DebtPayment(
+                    id = nextDebtPaymentId++,
+                    date = date,
+                    amount = amount
+                )
+            )
+        }
+    }
+)
+
 
                     "Стата" -> StatisticsScreen(
     sales = sales.filter { it.id > statsResetThroughId },
@@ -1636,6 +1670,327 @@ fun FormField(
         keyboardOptions = KeyboardOptions(
             keyboardType = keyboardType
         )
+    )
+}
+
+
+@Composable
+fun DebtsScreen(
+    debts: SnapshotStateList<Debt>,
+    onAdd: (String, String, Double, String) -> Unit,
+    onUpdate: (Debt) -> Unit,
+    onDelete: (Debt) -> Unit,
+    onAddPayment: (Int, String, Double) -> Unit
+) {
+    var showForm by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Debt?>(null) }
+    var paymentDebt by remember { mutableStateOf<Debt?>(null) }
+
+    val totalRemaining = debts.sumOf { it.remaining }
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(13.dp)
+    ) {
+        Text(
+            "Учёт задолженностей",
+            color = Green,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            "Всего записей: ${debts.size}",
+            color = Muted
+        )
+
+        Text(
+            "Остаток всех долгов: ${money(totalRemaining)} AZN",
+            color = Green,
+            fontWeight = FontWeight.Bold
+        )
+
+        Button(
+            onClick = {
+                editing = null
+                showForm = true
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Green,
+                contentColor = Bg
+            )
+        ) {
+            Text("+ Добавить долг")
+        }
+
+        if (debts.isEmpty()) {
+            Text("Задолженностей пока нет.", color = Muted)
+        }
+
+        debts.forEach { debt ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Panel, RoundedCornerShape(16.dp))
+                    .padding(15.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    debt.debtor,
+                    color = Green,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text("Дата: ${debt.date}", color = Muted)
+                Text("Первоначальный долг: ${money(debt.amount)} AZN", color = White)
+                Text("Оплачено: ${money(debt.paid)} AZN", color = White)
+
+                Text(
+                    "Осталось: ${money(debt.remaining)} AZN",
+                    color = if (debt.isPaid) Green else White,
+                    fontWeight = FontWeight.Bold
+                )
+
+                if (debt.note.isNotBlank()) {
+                    Text("Примечание: ${debt.note}", color = Muted)
+                }
+
+                Text(
+                    if (debt.isPaid) "Полностью оплачено" else "Есть задолженность",
+                    color = if (debt.isPaid) Green else Red
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (!debt.isPaid) {
+                        OutlinedButton(
+                            onClick = { paymentDebt = debt },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("Платёж")
+                        }
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            editing = debt
+                            showForm = true
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Изменить")
+                    }
+
+                    OutlinedButton(
+                        onClick = { onDelete(debt) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Red
+                        )
+                    ) {
+                        Text("Удалить")
+                    }
+                }
+
+                if (debt.payments.isNotEmpty()) {
+                    Text(
+                        "История платежей:",
+                        color = Green,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    debt.payments.forEach { payment ->
+                        Text(
+                            "${payment.date} — ${money(payment.amount)} AZN",
+                            color = Muted
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    if (showForm) {
+        DebtForm(
+            initial = editing,
+            onDismiss = { showForm = false },
+            onSave = { debtor, date, amount, note ->
+                if (editing == null) {
+                    onAdd(debtor, date, amount, note)
+                } else {
+                    onUpdate(
+                        editing!!.copy(
+                            debtor = debtor,
+                            date = date,
+                            amount = amount,
+                            note = note
+                        )
+                    )
+                }
+                showForm = false
+            }
+        )
+    }
+
+    paymentDebt?.let { debt ->
+        PaymentForm(
+            remaining = debt.remaining,
+            onDismiss = { paymentDebt = null },
+            onSave = { date, amount ->
+                onAddPayment(debt.id, date, amount)
+                paymentDebt = null
+            }
+        )
+    }
+}
+
+
+@Composable
+fun DebtForm(
+    initial: Debt?,
+    onDismiss: () -> Unit,
+    onSave: (String, String, Double, String) -> Unit
+) {
+    var debtor by remember(initial) {
+        mutableStateOf(initial?.debtor ?: "")
+    }
+    var date by remember(initial) {
+        mutableStateOf(initial?.date ?: dateText(System.currentTimeMillis()))
+    }
+    var amount by remember(initial) {
+        mutableStateOf(initial?.amount?.toString() ?: "")
+    }
+    var note by remember(initial) {
+        mutableStateOf(initial?.note ?: "")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Panel,
+        title = {
+            Text(
+                if (initial == null) "Новый долг" else "Изменить долг",
+                color = Green
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                FormField("Имя должника", debtor) {
+                    debtor = it
+                }
+                FormField("Дата (дд.мм.гггг)", date) {
+                    date = it
+                }
+                FormField(
+                    "Сумма долга (AZN)",
+                    amount,
+                    keyboardType = KeyboardType.Decimal
+                ) {
+                    amount = it
+                }
+                FormField(
+                    "Примечание",
+                    note,
+                    singleLine = false
+                ) {
+                    note = it
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val value = amount.replace(",", ".").toDoubleOrNull()
+
+                    if (
+                        debtor.isNotBlank() &&
+                        date.isNotBlank() &&
+                        value != null &&
+                        value > 0 &&
+                        (initial == null || value >= initial.paid)
+                    ) {
+                        onSave(
+                            debtor.trim(),
+                            date.trim(),
+                            value,
+                            note.trim()
+                        )
+                    }
+                }
+            ) {
+                Text("Сохранить", color = Green)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Назад", color = Muted)
+            }
+        }
+    )
+}
+
+@Composable
+fun PaymentForm(
+    remaining: Double,
+    onDismiss: () -> Unit,
+    onSave: (String, Double) -> Unit
+) {
+    var date by remember {
+        mutableStateOf(dateText(System.currentTimeMillis()))
+    }
+    var amount by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Panel,
+        title = { Text("Новый платёж", color = Green) },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    "Остаток долга: ${money(remaining)} AZN",
+                    color = White
+                )
+
+                FormField("Дата (дд.мм.гггг)", date) {
+                    date = it
+                }
+
+                FormField(
+                    "Сумма платежа (AZN)",
+                    amount,
+                    keyboardType = KeyboardType.Decimal
+                ) {
+                    amount = it
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                val value = amount.replace(",", ".").toDoubleOrNull()
+
+                if (
+                    date.isNotBlank() &&
+                    value != null &&
+                    value > 0 &&
+                    value <= remaining
+                ) {
+                    onSave(date.trim(), value)
+                }
+            }) {
+                Text("Сохранить", color = Green)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Назад", color = Muted)
+            }
+        }
     )
 }
 
