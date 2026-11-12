@@ -270,16 +270,38 @@ fun TimSalesApp() {
         mutableIntStateOf((appointments.maxOfOrNull { it.id } ?: 0) + 1)
     }
 
-    var nextSaleId by remember {
-        mutableIntStateOf((sales.maxOfOrNull { it.id } ?: 0) + 1)
-    }
+    val prefs = context.getSharedPreferences("timsales", 0)
+
+var statsResetThroughId by remember {
+    mutableIntStateOf(prefs.getInt("statsResetThroughId", 0))
+}
+
+var nextSaleId by remember {
+    mutableIntStateOf(
+        prefs.getInt(
+            "nextSaleId",
+            (sales.maxOfOrNull { it.id } ?: 0) + 1
+        )
+    )
+}
 
     var page by remember {
         mutableStateOf("Главная")
     }
 
-    LaunchedEffect(products.toList(), appointments.toList(), sales.toList()) {
-        saveData(context, products, appointments, sales)
+    LaunchedEffect(
+    products.toList(),
+    appointments.toList(),
+    sales.toList(),
+    statsResetThroughId,
+    nextSaleId
+) {
+    saveData(context, products, appointments, sales)
+
+    prefs.edit()
+        .putInt("statsResetThroughId", statsResetThroughId)
+        .putInt("nextSaleId", nextSaleId)
+        .apply()
     }
 
     MaterialTheme(
