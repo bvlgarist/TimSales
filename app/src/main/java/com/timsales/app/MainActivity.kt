@@ -654,4 +654,738 @@ fun AppointmentCard(
             color = White
         )
 
-        if (appointment.pl
+        
+        if (appointment.place.isNotBlank()) {
+            Text("Место: ${appointment.place}", color = Muted)
+        }
+
+        if (appointment.products.isNotBlank()) {
+            Text("Товары: ${appointment.products}", color = Muted)
+        }
+
+        Text("Статус: ${appointment.status}", color = Muted)
+
+        if (!historyMode) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                OutlinedButton(
+                    onClick = onEdit,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Изменить", fontSize = 11.sp)
+                }
+
+                OutlinedButton(
+                    onClick = onComplete,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Готово", fontSize = 11.sp)
+                }
+
+                OutlinedButton(
+                    onClick = onCancel,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Отмена", fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppointmentForm(
+    initial: Appointment?,
+    onDismiss: () -> Unit,
+    onSave: (String, String, String, String, String) -> Unit
+) {
+    var client by remember(initial) {
+        mutableStateOf(initial?.client ?: "")
+    }
+    var selectedDate by remember(initial) {
+        mutableLongStateOf(
+            dateMillis(initial?.date ?: dateText(System.currentTimeMillis()))
+        )
+    }
+    var time by remember(initial) {
+        mutableStateOf(initial?.time ?: "")
+    }
+    var place by remember(initial) {
+        mutableStateOf(initial?.place ?: "")
+    }
+    var productsText by remember(initial) {
+        mutableStateOf(initial?.products ?: "")
+    }
+    var showCalendar by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Panel,
+        title = {
+            Text(
+                if (initial == null) "Новая встреча" else "Изменить встречу",
+                color = Green
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 440.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                FormField("Имя клиента", client) {
+                    client = it
+                }
+
+                OutlinedButton(
+                    onClick = { showCalendar = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Дата: ${dateText(selectedDate)}", color = Green)
+                }
+
+                FormField("Время", time) {
+                    time = it
+                }
+
+                FormField("Место встречи", place) {
+                    place = it
+                }
+
+                FormField(
+                    "Товары и количество",
+                    productsText,
+                    singleLine = false
+                ) {
+                    productsText = it
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (client.isNotBlank()) {
+                        onSave(
+                            client.trim(),
+                            dateText(selectedDate),
+                            time.trim(),
+                            place.trim(),
+                            productsText.trim()
+                        )
+                    }
+                }
+            ) {
+                Text("Сохранить", color = Green)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Назад", color = Muted)
+            }
+        }
+    )
+
+    if (showCalendar) {
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate
+        )
+
+        DatePickerDialog(
+            onDismissRequest = { showCalendar = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pickerState.selectedDateMillis?.let {
+                            selectedDate = it
+                        }
+                        showCalendar = false
+                    }
+                ) {
+                    Text("Выбрать", color = Green)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCalendar = false }) {
+                    Text("Назад", color = Muted)
+                }
+            }
+        ) {
+            DatePicker(state = pickerState)
+        }
+    }
+}
+
+@Composable
+fun ProductsScreen(
+    products: SnapshotStateList<Product>,
+    onAdd: (String, Double, Double) -> Unit,
+    onUpdate: (Product) -> Unit,
+    onDelete: (Product) -> Unit
+) {
+    var showForm by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Product?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        Text(
+            "Справочник товаров",
+            color = Green,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text("${products.size} товаров сохранено", color = Muted)
+
+        Button(
+            onClick = {
+                editing = null
+                showForm = true
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Green,
+                contentColor = Bg
+            )
+        ) {
+            Text("+ Добавить товар")
+        }
+
+        if (products.isEmpty()) {
+            Text("Пока товаров нет.", color = Muted)
+        }
+
+        products.forEach { product ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Panel, RoundedCornerShape(16.dp))
+                    .padding(15.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    product.name,
+                    color = Green,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text("Закупка: ${money(product.buyPrice)} AZN", color = White)
+                Text("Продажа: ${money(product.sellPrice)} AZN", color = White)
+
+                Text(
+                    "Прибыль с единицы: ${money(product.sellPrice - product.buyPrice)} AZN",
+                    color = Green
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = {
+                            editing = product
+                            showForm = true
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Изменить")
+                    }
+
+                    OutlinedButton(
+                        onClick = { onDelete(product) },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Red
+                        )
+                    ) {
+                        Text("Удалить")
+                    }
+                }
+            }
+        }
+    }
+
+    if (showForm) {
+        ProductForm(
+            initial = editing,
+            onDismiss = { showForm = false },
+            onSave = { name, buy, sell ->
+                if (editing == null) {
+                    onAdd(name, buy, sell)
+                } else {
+                    onUpdate(
+                        editing!!.copy(
+                            name = name,
+                            buyPrice = buy,
+                            sellPrice = sell
+                        )
+                    )
+                }
+                showForm = false
+            }
+        )
+    }
+}
+
+@Composable
+fun ProductForm(
+    initial: Product?,
+    onDismiss: () -> Unit,
+    onSave: (String, Double, Double) -> Unit
+) {
+    var name by remember(initial) {
+        mutableStateOf(initial?.name ?: "")
+    }
+    var buyPrice by remember(initial) {
+        mutableStateOf(initial?.buyPrice?.toString() ?: "")
+    }
+    var sellPrice by remember(initial) {
+        mutableStateOf(initial?.sellPrice?.toString() ?: "")
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Panel,
+        title = {
+            Text(
+                if (initial == null) "Новый товар" else "Изменить товар",
+                color = Green
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                FormField("Название товара", name) {
+                    name = it
+                }
+                FormField(
+                    "Цена закупки (AZN)",
+                    buyPrice,
+                    keyboardType = KeyboardType.Decimal
+                ) {
+                    buyPrice = it
+                }
+                FormField(
+                    "Цена продажи (AZN)",
+                    sellPrice,
+                    keyboardType = KeyboardType.Decimal
+                ) {
+                    sellPrice = it
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    val buy = buyPrice.replace(",", ".").toDoubleOrNull()
+                    val sell = sellPrice.replace(",", ".").toDoubleOrNull()
+
+                    if (
+                        name.isNotBlank() &&
+                        buy != null && sell != null &&
+                        buy >= 0 && sell >= 0
+                    ) {
+                        onSave(name.trim(), buy, sell)
+                    }
+                }
+            ) {
+                Text("Сохранить", color = Green)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Назад", color = Muted)
+            }
+        }
+    )
+}
+
+@Composable
+fun SalesScreen(
+    products: SnapshotStateList<Product>,
+    sales: SnapshotStateList<Sale>,
+    onAdd: (String, Int, Double, Double, Double) -> Unit,
+    onUpdate: (Sale) -> Unit,
+    onDelete: (Sale) -> Unit
+) {
+    var showForm by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf<Sale?>(null) }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            "Продажи",
+            color = Green,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text("Всего операций: ${sales.size}", color = Muted)
+
+        Button(
+            onClick = {
+                editing = null
+                showForm = true
+            },
+            enabled = products.isNotEmpty(),
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Green,
+                contentColor = Bg
+            )
+        ) {
+            Text("+ Добавить продажу")
+        }
+
+        if (products.isEmpty()) {
+            Text("Сначала добавь товары в справочник.", color = Muted)
+        }
+
+        if (sales.isEmpty()) {
+            Text("История продаж пока пуста.", color = Muted)
+        }
+
+        sales.forEach { sale ->
+            SaleCard(
+                sale = sale,
+                onEdit = {
+                    editing = sale
+                    showForm = true
+                },
+                onDelete = { onDelete(sale) }
+            )
+        }
+    }
+
+    if (showForm) {
+        SaleForm(
+            products = products,
+            initial = editing,
+            onDismiss = { showForm = false },
+            onSave = { name, quantity, buy, sell, delivery ->
+                if (editing == null) {
+                    onAdd(name, quantity, buy, sell, delivery)
+                } else {
+                    onUpdate(
+                        editing!!.copy(
+                            productName = name,
+                            quantity = quantity,
+                            buyPrice = buy,
+                            sellPrice = sell,
+                            deliveryFee = delivery
+                        )
+                    )
+                }
+                showForm = false
+            }
+        )
+    }
+}
+
+@Composable
+fun SaleCard(
+    sale: Sale,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(16.dp))
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            sale.productName,
+            color = Green,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text("Дата: ${sale.date}", color = Muted)
+        Text("Количество: ${sale.quantity}", color = White)
+        Text("Выручка: ${money(sale.revenue)} AZN", color = White)
+        Text("Себестоимость: ${money(sale.cost)} AZN", color = White)
+        Text("Прибыль товара: ${money(sale.productProfit)} AZN", color = Green)
+        Text("Доставка: ${money(sale.deliveryFee)} AZN", color = White)
+
+        Text(
+            "Итого прибыль: ${money(sale.totalProfit)} AZN",
+            color = Green,
+            fontWeight = FontWeight.Bold
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = onEdit,
+                modifier = Modifier.weight(1f)
+            ) {
+                Text("Изменить")
+            }
+
+            OutlinedButton(
+                onClick = onDelete,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = Red
+                )
+            ) {
+                Text("Удалить")
+            }
+        }
+    }
+}
+
+@Composable
+fun SaleForm(
+    products: List<Product>,
+    initial: Sale?,
+    onDismiss: () -> Unit,
+    onSave: (String, Int, Double, Double, Double) -> Unit
+) {
+    var selectedName by remember(initial, products) {
+        mutableStateOf(
+            initial?.productName ?: products.firstOrNull()?.name.orEmpty()
+        )
+    }
+
+    val selectedProduct = products.firstOrNull {
+        it.name == selectedName
+    }
+
+    var quantity by remember(initial) {
+        mutableStateOf(initial?.quantity?.toString() ?: "1")
+    }
+
+    var buyPrice by remember(initial, selectedProduct) {
+        mutableStateOf(
+            initial?.buyPrice?.toString()
+                ?: selectedProduct?.buyPrice?.toString().orEmpty()
+        )
+    }
+
+    var sellPrice by remember(initial, selectedProduct) {
+        mutableStateOf(
+            initial?.sellPrice?.toString()
+                ?: selectedProduct?.sellPrice?.toString().orEmpty()
+        )
+    }
+
+    var delivery by remember(initial) {
+        mutableStateOf(initial?.deliveryFee?.toString() ?: "0")
+    }
+
+    var expanded by remember { mutableStateOf(false) }
+
+    val qty = quantity.toIntOrNull() ?: 0
+    val buy = buyPrice.replace(",", ".").toDoubleOrNull() ?: 0.0
+    val sell = sellPrice.replace(",", ".").toDoubleOrNull() ?: 0.0
+    val deliveryAmount = delivery.replace(",", ".").toDoubleOrNull() ?: 0.0
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = Panel,
+        title = {
+            Text(
+                if (initial == null) "Новая продажа" else "Изменить продажу",
+                color = Green
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .heightIn(max = 450.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(9.dp)
+            ) {
+                Box {
+                    OutlinedButton(
+                        onClick = { expanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(selectedName.ifBlank { "Выбрать товар" }, color = Green)
+                    }
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        products.forEach { product ->
+                            DropdownMenuItem(
+                                text = { Text(product.name) },
+                                onClick = {
+                                    selectedName = product.name
+                                    buyPrice = product.buyPrice.toString()
+                                    sellPrice = product.sellPrice.toString()
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                FormField(
+                    "Количество",
+                    quantity,
+                    keyboardType = KeyboardType.Number
+                ) {
+                    quantity = it
+                }
+
+                FormField(
+                    "Закупочная цена за единицу",
+                    buyPrice,
+                    keyboardType = KeyboardType.Decimal
+                ) {
+                    buyPrice = it
+                }
+
+                FormField(
+                    "Цена продажи за единицу",
+                    sellPrice,
+                    keyboardType = KeyboardType.Decimal
+                ) {
+                    sellPrice = it
+                }
+
+                FormField(
+                    "Доставка (AZN, если была)",
+                    delivery,
+                    keyboardType = KeyboardType.Decimal
+                ) {
+                    delivery = it
+                }
+
+                HorizontalDivider(color = Muted)
+
+                Text("Выручка: ${money(sell * qty)} AZN", color = White)
+                Text("Себестоимость: ${money(buy * qty)} AZN", color = White)
+                Text(
+                    "Прибыль товара: ${money((sell - buy) * qty)} AZN",
+                    color = Green
+                )
+                Text(
+                    "Общая прибыль с доставкой: ${
+                        money((sell - buy) * qty + deliveryAmount)
+                    } AZN",
+                    color = Green,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (
+                        selectedName.isNotBlank() &&
+                        qty > 0 &&
+                        buy >= 0 &&
+                        sell >= 0 &&
+                        deliveryAmount >= 0
+                    ) {
+                        onSave(
+                            selectedName,
+                            qty,
+                            buy,
+                            sell,
+                            deliveryAmount
+                        )
+                    }
+                }
+            ) {
+                Text("Сохранить", color = Green)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Назад", color = Muted)
+            }
+        }
+    )
+}
+
+@Composable
+fun StatisticsScreen(sales: List<Sale>) {
+    val revenue = sales.sumOf { it.revenue }
+    val cost = sales.sumOf { it.cost }
+    val productProfit = sales.sumOf { it.productProfit }
+    val delivery = sales.sumOf { it.deliveryFee }
+    val totalProfit = sales.sumOf { it.totalProfit }
+
+    Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        Text(
+            "Статистика",
+            color = Green,
+            fontSize = 25.sp,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text("Всего продаж: ${sales.size}", color = Muted)
+
+        StatisticRow("Выручка от товаров", revenue)
+        StatisticRow("Себестоимость товаров", cost)
+        StatisticRow("Прибыль от товаров", productProfit)
+        StatisticRow("Доход от доставки", delivery)
+        HorizontalDivider(color = Muted)
+        StatisticRow("Общая прибыль", totalProfit, true)
+    }
+}
+
+@Composable
+fun StatisticRow(
+    label: String,
+    amount: Double,
+    highlight: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Panel, RoundedCornerShape(12.dp))
+            .padding(14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            label,
+            color = if (highlight) Green else White,
+            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Normal
+        )
+
+        Text(
+            "${money(amount)} AZN",
+            color = Green,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun FormField(
+    label: String,
+    value: String,
+    singleLine: Boolean = true,
+    keyboardType: KeyboardType = KeyboardType.Text,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label) },
+        modifier = Modifier.fillMaxWidth(),
+        singleLine = singleLine,
+        keyboardOptions = KeyboardOptions(
+            keyboardType = keyboardType
+        )
+    )
+}
+
+@Composable
+fun SimpleScreen(
+    title: String,
+    description: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            title,
+            color = Green,
+            fontSize = 24.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Text(description, color = Muted, fontSize = 15.sp)
+    }
+}
+
