@@ -209,6 +209,49 @@ fun loadSales(context: Context): List<Sale> {
     return result
 }
 
+fun loadDebts(context: Context): List<Debt> {
+    val prefs = context.getSharedPreferences("timsales", 0)
+    val json = prefs.getString("debts", "[]") ?: "[]"
+    val result = mutableListOf<Debt>()
+
+    try {
+        val array = JSONArray(json)
+
+        for (i in 0 until array.length()) {
+            val item = array.getJSONObject(i)
+            val paymentsArray = item.optJSONArray("payments") ?: JSONArray()
+            val payments = mutableListOf<DebtPayment>()
+
+            for (j in 0 until paymentsArray.length()) {
+                val payment = paymentsArray.getJSONObject(j)
+
+                payments.add(
+                    DebtPayment(
+                        id = payment.getInt("id"),
+                        date = payment.getString("date"),
+                        amount = payment.getDouble("amount")
+                    )
+                )
+            }
+
+            result.add(
+                Debt(
+                    id = item.getInt("id"),
+                    debtor = item.getString("debtor"),
+                    date = item.getString("date"),
+                    amount = item.getDouble("amount"),
+                    note = item.optString("note", ""),
+                    payments = payments
+                )
+            )
+        }
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+
+    return result
+}
+
 
 fun saveData(
     context: Context,
