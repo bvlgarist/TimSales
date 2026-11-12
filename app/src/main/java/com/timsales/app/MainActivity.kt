@@ -73,6 +73,32 @@ data class Sale(
         get() = productProfit + deliveryFee
 }
 
+    
+data class DebtPayment(
+    val id: Int,
+    val date: String,
+    val amount: Double
+)
+
+data class Debt(
+    val id: Int,
+    val debtor: String,
+    val date: String,
+    val amount: Double,
+    val note: String,
+    val payments: List<DebtPayment> = emptyList()
+) {
+    val paid: Double
+        get() = payments.sumOf { it.amount }
+
+    val remaining: Double
+        get() = (amount - paid).coerceAtLeast(0.0)
+
+    val isPaid: Boolean
+        get() = remaining <= 0.001
+}
+
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
