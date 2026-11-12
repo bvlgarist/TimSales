@@ -390,6 +390,26 @@ var nextSaleId by remember {
     )
 }
 
+
+var nextDebtId by remember {
+    mutableIntStateOf(
+        prefs.getInt(
+            "nextDebtId",
+            (debts.maxOfOrNull { it.id } ?: 0) + 1
+        )
+    )
+}
+
+var nextDebtPaymentId by remember {
+    mutableIntStateOf(
+        prefs.getInt(
+            "nextDebtPaymentId",
+            (debts.flatMap { it.payments }.maxOfOrNull { it.id } ?: 0) + 1
+        )
+    )
+}
+
+
     var page by remember {
         mutableStateOf("Главная")
     }
