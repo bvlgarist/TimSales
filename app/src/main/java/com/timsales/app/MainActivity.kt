@@ -414,20 +414,27 @@ var nextDebtPaymentId by remember {
         mutableStateOf("Главная")
     }
 
-    LaunchedEffect(
+    
+LaunchedEffect(
     products.toList(),
     appointments.toList(),
     sales.toList(),
+    debts.toList(),
     statsResetThroughId,
-    nextSaleId
+    nextSaleId,
+    nextDebtId,
+    nextDebtPaymentId
 ) {
     saveData(context, products, appointments, sales, debts)
 
     prefs.edit()
         .putInt("statsResetThroughId", statsResetThroughId)
         .putInt("nextSaleId", nextSaleId)
+        .putInt("nextDebtId", nextDebtId)
+        .putInt("nextDebtPaymentId", nextDebtPaymentId)
         .apply()
-    }
+}
+
 
     MaterialTheme(
         colorScheme = darkColorScheme(
