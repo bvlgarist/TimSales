@@ -209,11 +209,13 @@ fun loadSales(context: Context): List<Sale> {
     return result
 }
 
+
 fun saveData(
     context: Context,
     products: List<Product>,
     appointments: List<Appointment>,
-    sales: List<Sale>
+    sales: List<Sale>,
+    debts: List<Debt>
 ) {
     val productsArray = JSONArray()
     products.forEach { p ->
@@ -257,13 +259,41 @@ fun saveData(
         )
     }
 
+    val debtsArray = JSONArray()
+    debts.forEach { d ->
+        val paymentsArray = JSONArray()
+
+        d.payments.forEach { p ->
+            paymentsArray.put(
+                JSONObject().apply {
+                    put("id", p.id)
+                    put("date", p.date)
+                    put("amount", p.amount)
+                }
+            )
+        }
+
+        debtsArray.put(
+            JSONObject().apply {
+                put("id", d.id)
+                put("debtor", d.debtor)
+                put("date", d.date)
+                put("amount", d.amount)
+                put("note", d.note)
+                put("payments", paymentsArray)
+            }
+        )
+    }
+
     context.getSharedPreferences("timsales", 0)
         .edit()
         .putString("products", productsArray.toString())
         .putString("appointments", appointmentsArray.toString())
         .putString("sales", salesArray.toString())
+        .putString("debts", debtsArray.toString())
         .apply()
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
