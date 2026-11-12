@@ -369,10 +369,10 @@ var nextSaleId by remember {
             ) {
                 when (page) {
                     "Главная" -> HomeScreen(
-                        appointments = appointments,
-                        sales = sales,
-                        onOpenPlanner = { page = "План" }
-                    )
+    appointments = appointments,
+    sales = sales.filter { it.id > statsResetThroughId },
+    onOpenPlanner = { page = "План" }
+)
 
                     "План" -> PlannerScreen(
                         appointments = appointments,
@@ -442,7 +442,17 @@ var nextSaleId by remember {
                         "Учёт задолженностей добавим следующим этапом."
                     )
 
-                    "Стата" -> StatisticsScreen(sales)
+                    "Стата" -> StatisticsScreen(
+    sales = sales.filter { it.id > statsResetThroughId },
+    onResetStats = {
+        statsResetThroughId = sales.maxOfOrNull { it.id }
+            ?: statsResetThroughId
+    },
+    onResetSales = {
+        sales.clear()
+        statsResetThroughId = 0
+    }
+)
                 }
             }
         }
@@ -1322,7 +1332,14 @@ fun SaleForm(
 }
 
 @Composable
-fun StatisticsScreen(sales: List<Sale>) {
+fun StatisticsScreen(
+    sales: List<Sale>,
+    onResetStats: () -> Unit,
+    onResetSales: () -> Unit
+) {
+    var showStatsDialog by remember { mutableStateOf(false) }
+    var showSalesDialog by remember { mutableStateOf(false) }
+
     val revenue = sales.sumOf { it.revenue }
     val cost = sales.sumOf { it.cost }
     val productProfit = sales.sumOf { it.productProfit }
@@ -1337,16 +1354,111 @@ fun StatisticsScreen(sales: List<Sale>) {
             fontWeight = FontWeight.Bold
         )
 
-        Text("Всего продаж: ${sales.size}", color = Muted)
+        Text("Продаж в текущей статистике: ${sales.size}", color = Muted)
 
         StatisticRow("Выручка от товаров", revenue)
         StatisticRow("Себестоимость товаров", cost)
         StatisticRow("Прибыль от товаров", productProfit)
         StatisticRow("Доход от доставки", delivery)
+
         HorizontalDivider(color = Muted)
+
         StatisticRow("Общая прибыль", totalProfit, true)
+
+        Spacer(Modifier.height(10.dp))
+
+        Button(
+            onClick = { showStatsDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = Green,
+                contentColor = Bg
+            )
+        ) {
+            Text("Обнулить статистику")
+        }
+
+        OutlinedButton(
+            onClick = { showSalesDialog = true },
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.outlinedButtonColors(
+                contentColor = Red
+            )
+        ) {
+            Text("Обнулить продажи")
+        }
+
+        Text(
+            "Сброс статистики сохраняет историю продаж. " +
+                "Удаление продаж стирает всю историю.",
+            color = Muted,
+            fontSize = 12.sp
+        )
+    }
+
+    if (showStatsDialog) {
+        AlertDialog(
+            onDismissRequest = { showStatsDialog = false },
+            containerColor = Panel,
+            title = {
+                Text("Обнулить статистику?", color = Green)
+            },
+            text = {
+                Text(
+                    "Показатели обнулятся. История продаж останется " +
+                        "в разделе «Продажи»."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onResetStats()
+                        showStatsDialog = false
+                    }
+                ) {
+                    Text("Обнулить", color = Green)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStatsDialog = false }) {
+                    Text("Отмена", color = Muted)
+                }
+            }
+        )
+    }
+
+    if (showSalesDialog) {
+        AlertDialog(
+            onDismissRequest = { showSalesDialog = false },
+            containerColor = Panel,
+            title = {
+                Text("Удалить все продажи?", color = Red)
+            },
+            text = {
+                Text(
+                    "Вся история продаж будет удалена без возможности " +
+                        "восстановления. Товары и долги останутся."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        onResetSales()
+                        showSalesDialog = false
+                    }
+                ) {
+                    Text("Удалить всё", color = Red)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSalesDialog = false }) {
+                    Text("Отмена", color = Muted)
+                }
+            }
+        )
     }
 }
+
 
 @Composable
 fun StatisticRow(
