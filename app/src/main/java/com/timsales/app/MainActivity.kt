@@ -352,7 +352,7 @@ var nextSaleId by remember {
     statsResetThroughId,
     nextSaleId
 ) {
-    saveData(context, products, appointments, sales)
+    saveData(context, products, appointments, sales, debts)
 
     prefs.edit()
         .putInt("statsResetThroughId", statsResetThroughId)
