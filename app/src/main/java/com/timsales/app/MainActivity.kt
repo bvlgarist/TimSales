@@ -318,6 +318,12 @@ fun TimSalesApp() {
         }
     }
 
+    val debts = remember {
+    mutableStateListOf<Debt>().apply {
+        addAll(loadDebts(context))
+    }
+    }
+
     var nextProductId by remember {
         mutableIntStateOf((products.maxOfOrNull { it.id } ?: 0) + 1)
     }
