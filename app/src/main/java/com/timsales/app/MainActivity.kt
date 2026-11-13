@@ -371,9 +371,30 @@ fun TimSalesApp() {
     var nextProductId by remember {
         mutableIntStateOf((products.maxOfOrNull { it.id } ?: 0) + 1)
     }
+    var nextAppointmentId by remember {
+        mutableIntStateOf((appointments.maxOfOrNull { it.id } ?: 0) + 1)
+    }
 
-        р
+    val prefs = context.getSharedPreferences("timsales", 0)
 
+    var remindersEnabled by remember {
+        mutableStateOf(
+            prefs.getBoolean("remindersEnabled", true)
+        )
+    }
+
+    var statsResetThroughId by remember {
+        mutableIntStateOf(prefs.getInt("statsResetThroughId", 0))
+    }
+
+    var nextSaleId by remember {
+        mutableIntStateOf(
+            prefs.getInt(
+                "nextSaleId",
+                (sales.maxOfOrNull { it.id } ?: 0) + 1
+            )
+        )
+    }
 
 var nextDebtId by remember {
     mutableIntStateOf(
