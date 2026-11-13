@@ -6,6 +6,7 @@ import android.content.BroadcastReceiver
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -24,6 +25,7 @@ class AppointmentReminderReceiver : BroadcastReceiver() {
         val client = intent.getStringExtra("client") ?: "Клиент"
         val time = intent.getStringExtra("time") ?: ""
         val place = intent.getStringExtra("place") ?: ""
+        val appointmentId = intent.getIntExtra("appointmentId", 0)
 
         val channelId = "appointment_reminders"
         val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -37,6 +39,20 @@ class AppointmentReminderReceiver : BroadcastReceiver() {
             manager.createNotificationChannel(channel)
         }
 
+        // Действие при нажатии на уведомление.
+        val openAppIntent = Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                    Intent.FLAG_ACTIVITY_SINGLE_TOP
+        }
+
+        val contentPendingIntent = PendingIntent.getActivity(
+            context,
+            appointmentId,
+            openAppIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val notification = if (Build.VERSION.SDK_INT >= 26) {
             Notification.Builder(context, channelId)
         } else {
@@ -49,9 +65,10 @@ class AppointmentReminderReceiver : BroadcastReceiver() {
                 Notification.BigTextStyle()
                     .bigText("Клиент: $client\nВремя: $time\nМесто: $place")
             )
+            .setContentIntent(contentPendingIntent)
             .setAutoCancel(true)
             .build()
 
-        manager.notify(intent.getIntExtra("appointmentId", 0), notification)
+        manager.notify(appointmentId, notification)
     }
 }
