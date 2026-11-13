@@ -432,6 +432,7 @@ LaunchedEffect(
     nextDebtPaymentId
 ) {
     saveData(context, products, appointments, sales, debts)
+    scheduleAppointmentReminders(context, appointments, remindersEnabled)
 
     prefs.edit()
         .putInt("statsResetThroughId", statsResetThroughId)
