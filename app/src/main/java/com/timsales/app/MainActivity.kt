@@ -13,6 +13,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -371,24 +372,7 @@ fun TimSalesApp() {
         mutableIntStateOf((products.maxOfOrNull { it.id } ?: 0) + 1)
     }
 
-    var nextAppointmentId by remember {
-        mutableIntStateOf((appointments.maxOfOrNull { it.id } ?: 0) + 1)
-    }
-
-    val prefs = context.getSharedPreferences("timsales", 0)
-
-var statsResetThroughId by remember {
-    mutableIntStateOf(prefs.getInt("statsResetThroughId", 0))
-}
-
-var nextSaleId by remember {
-    mutableIntStateOf(
-        prefs.getInt(
-            "nextSaleId",
-            (sales.maxOfOrNull { it.id } ?: 0) + 1
-        )
-    )
-}
+        р
 
 
 var nextDebtId by remember {
@@ -421,6 +405,7 @@ LaunchedEffect(
     sales.toList(),
     debts.toList(),
     statsResetThroughId,
+    remindersEnabled,
     nextSaleId,
     nextDebtId,
     nextDebtPaymentId
@@ -429,6 +414,7 @@ LaunchedEffect(
 
     prefs.edit()
         .putInt("statsResetThroughId", statsResetThroughId)
+        .putBoolean("remindersEnabled", remindersEnabled)
         .putInt("nextSaleId", nextSaleId)
         .putInt("nextDebtId", nextDebtId)
         .putInt("nextDebtPaymentId", nextDebtPaymentId)
@@ -525,7 +511,9 @@ LaunchedEffect(
                                 it.id == updated.id
                             }
                             if (index >= 0) appointments[index] = updated
-                        }
+                        },
+                        remindersEnabled = remindersEnabled,
+                        onRemindersEnabledChange = { remindersEnabled = it }
                     )
 
                     "Товары" -> ProductsScreen(
@@ -720,7 +708,9 @@ fun MetricCard(
 fun PlannerScreen(
     appointments: SnapshotStateList<Appointment>,
     onAdd: (String, String, String, String, String) -> Unit,
-    onUpdate: (Appointment) -> Unit
+    onUpdate: (Appointment) -> Unit,
+    remindersEnabled: Boolean,
+    onRemindersEnabledChange: (Boolean) -> Unit
 ) {
     var showForm by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Appointment?>(null) }
