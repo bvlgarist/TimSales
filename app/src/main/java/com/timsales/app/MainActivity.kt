@@ -751,7 +751,25 @@ fun PlannerScreen(
             fontSize = 25.sp,
             fontWeight = FontWeight.Bold
         )
+        Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+) {
+    Column {
+        Text("Напоминания за 1 час", color = White)
+        Text(
+            "Уведомлять о предстоящих встречах",
+            color = Muted,
+            fontSize = 12.sp
+        )
+    }
 
+    Switch(
+        checked = remindersEnabled,
+        onCheckedChange = onRemindersEnabledChange
+    )
+        }
         Text("Предстоящие встречи: ${upcoming.size}", color = Muted)
 
         Button(
