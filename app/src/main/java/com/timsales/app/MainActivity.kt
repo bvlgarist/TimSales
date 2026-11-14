@@ -866,13 +866,23 @@ fun AppointmentCard(
     onEdit: () -> Unit,
     onComplete: () -> Unit,
     onCancel: () -> Unit,
-    historyMode: Boolean = false
+    historyMode: Boolean = false,
+    onLongPress: () -> Unit = {}
 ) {
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Panel, RoundedCornerShape(16.dp))
-            .padding(14.dp),
+    modifier = Modifier
+        .fillMaxWidth()
+        .pointerInput(appointment.id) {
+            detectTapGestures(
+                onLongPress = {
+                    if (historyMode) {
+                        onLongPress()
+                    }
+                }
+            )
+        }
+        .background(Panel, RoundedCornerShape(16.dp))
+        .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(7.dp)
     ) {
         Text(
