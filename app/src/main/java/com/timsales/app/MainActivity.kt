@@ -812,6 +812,7 @@ fun PlannerScreen(
             )
         }
 
+        
         if (history.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Text(
@@ -822,20 +823,21 @@ fun PlannerScreen(
             )
 
             history.forEach { appointment ->
-    AppointmentCard(
-        appointment = appointment,
-        onEdit = {
-            editing = appointment
-            showForm = true
-        },
-        onComplete = {},
-        onCancel = {},
-        historyMode = true,
-        onLongPress = {
-            selectedForDeletion = appointment
+                AppointmentCard(
+                    appointment = appointment,
+                    onEdit = {
+                        editing = appointment
+                        showForm = true
+                    },
+                    onComplete = {},
+                    onCancel = {},
+                    historyMode = true,
+                    onLongPress = {
+                        selectedForDeletion = appointment
+                    }
+                )
+            }
         }
-    )
-}
 
     if (showForm) {
         AppointmentForm(
@@ -859,7 +861,9 @@ fun PlannerScreen(
             }
         )
     }
+    }
 }
+
 
 @Composable
 fun AppointmentCard(
