@@ -738,6 +738,9 @@ fun PlannerScreen(
 ) {
     var showForm by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<Appointment?>(null) }
+    var selectedForDeletion by remember {
+    mutableStateOf<Appointment?>(null)
+    }
 
     val upcoming = appointments.filter {
         it.status == "Предстоящая"
