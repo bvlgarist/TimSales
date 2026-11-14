@@ -117,10 +117,18 @@ fun money(value: Double): String {
     return String.format(Locale.US, "%.2f", value)
 }
 
+// DatePicker stores selected days as UTC midnight. Keep this formatter in UTC
+// so the calendar day is not shifted by the device's local time zone.
 fun dateText(millis: Long): String {
     val formatter = SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
     formatter.timeZone = TimeZone.getTimeZone("UTC")
     return formatter.format(Date(millis))
+}
+
+// Dates created from the current clock must use the device's local time zone.
+fun currentLocalDateText(): String {
+    return SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
+        .format(Date())
 }
 
 fun dateMillis(value: String): Long {
@@ -565,7 +573,7 @@ LaunchedEffect(
                             sales.add(
                                 Sale(
                                     nextSaleId++,
-                                    dateText(System.currentTimeMillis()),
+                                    currentLocalDateText(),
                                     name,
                                     quantity,
                                     buy,
@@ -991,7 +999,7 @@ fun AppointmentForm(
     }
     var selectedDate by remember(initial) {
         mutableLongStateOf(
-            dateMillis(initial?.date ?: dateText(System.currentTimeMillis()))
+            dateMillis(initial?.date ?: currentLocalDateText())
         )
     }
     val defaultTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
@@ -2031,7 +2039,7 @@ fun DebtForm(
         mutableStateOf(initial?.debtor ?: "")
     }
     var date by remember(initial) {
-        mutableStateOf(initial?.date ?: dateText(System.currentTimeMillis()))
+        mutableStateOf(initial?.date ?: currentLocalDateText())
     }
     var amount by remember(initial) {
         mutableStateOf(initial?.amount?.toString() ?: "")
@@ -2114,7 +2122,7 @@ fun PaymentForm(
     onSave: (String, Double) -> Unit
 ) {
     var date by remember {
-        mutableStateOf(dateText(System.currentTimeMillis()))
+        mutableStateOf(currentLocalDateText())
     }
     var amount by remember { mutableStateOf("") }
 
