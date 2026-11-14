@@ -822,19 +822,20 @@ fun PlannerScreen(
             )
 
             history.forEach { appointment ->
-                AppointmentCard(
-                    appointment = appointment,
-                    onEdit = {
-                        editing = appointment
-                        showForm = true
-                    },
-                    onComplete = {},
-                    onCancel = {},
-                    historyMode = true
-                )
-            }
+    AppointmentCard(
+        appointment = appointment,
+        onEdit = {
+            editing = appointment
+            showForm = true
+        },
+        onComplete = {},
+        onCancel = {},
+        historyMode = true,
+        onLongPress = {
+            selectedForDeletion = appointment
         }
-    }
+    )
+}
 
     if (showForm) {
         AppointmentForm(
