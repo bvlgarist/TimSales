@@ -839,6 +839,7 @@ fun PlannerScreen(
             }
         }
 
+    
     if (showForm) {
         AppointmentForm(
             initial = editing,
@@ -861,8 +862,44 @@ fun PlannerScreen(
             }
         )
     }
+
+    if (selectedForDeletion != null) {
+        AlertDialog(
+            onDismissRequest = {
+                selectedForDeletion = null
+            },
+            title = {
+                Text("Удалить из истории")
+            },
+            text = {
+                Text("Удалить встречу с клиентом ${selectedForDeletion!!.client}?")
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        selectedForDeletion?.let {
+    appointments.remove(it)
+}
+selectedForDeletion = null
+                    }
+                ) {
+                    Text("Удалить")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        selectedForDeletion = null
+                    }
+                ) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
     }
 }
+
 
 
 @Composable
