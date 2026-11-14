@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -19,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -992,8 +994,14 @@ fun AppointmentForm(
             dateMillis(initial?.date ?: dateText(System.currentTimeMillis()))
         )
     }
-    var time by remember(initial) {
-        mutableStateOf(initial?.time ?: "")
+    val defaultTime = SimpleDateFormat("HH:mm", Locale.getDefault()).format(Date())
+    val initialTime = initial?.time?.takeIf { it.matches(Regex("\\d{2}:\\d{2}")) }
+        ?: defaultTime
+    var selectedHour by remember(initial) {
+        mutableIntStateOf(initialTime.substringBefore(":").toIntOrNull()?.coerceIn(0, 23) ?: 0)
+    }
+    var selectedMinute by remember(initial) {
+        mutableIntStateOf(initialTime.substringAfter(":").toIntOrNull()?.coerceIn(0, 59) ?: 0)
     }
     var place by remember(initial) {
         mutableStateOf(initial?.place ?: "")
@@ -1030,9 +1038,88 @@ fun AppointmentForm(
                     Text("Дата: ${dateText(selectedDate)}", color = Green)
                 }
 
-                FormField("Время", time) {
-                    time = it
+                Text("Время встречи", color = White, fontWeight = FontWeight.SemiBold)
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(172.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Часы",
+                            color = Muted,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            fontSize = 12.sp
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            (0..23).forEach { hour ->
+                                Text(
+                                    text = String.format(Locale.US, "%02d", hour),
+                                    color = if (selectedHour == hour) Green else White,
+                                    fontWeight = if (selectedHour == hour) FontWeight.Bold else FontWeight.Normal,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            if (selectedHour == hour) Color(0xFF263B30) else Color.Transparent,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { selectedHour = hour }
+                                        .padding(vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Минуты",
+                            color = Muted,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center,
+                            fontSize = 12.sp
+                        )
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            (0..59).forEach { minute ->
+                                Text(
+                                    text = String.format(Locale.US, "%02d", minute),
+                                    color = if (selectedMinute == minute) Green else White,
+                                    fontWeight = if (selectedMinute == minute) FontWeight.Bold else FontWeight.Normal,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(
+                                            if (selectedMinute == minute) Color(0xFF263B30) else Color.Transparent,
+                                            RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { selectedMinute = minute }
+                                        .padding(vertical = 7.dp)
+                                )
+                            }
+                        }
+                    }
                 }
+
+                Text(
+                    "Выбрано: " + String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute),
+                    color = Green,
+                    fontWeight = FontWeight.Bold
+                )
 
                 FormField("Место встречи", place) {
                     place = it
@@ -1054,7 +1141,7 @@ fun AppointmentForm(
                         onSave(
                             client.trim(),
                             dateText(selectedDate),
-                            time.trim(),
+                            String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute),
                             place.trim(),
                             productsText.trim()
                         )
