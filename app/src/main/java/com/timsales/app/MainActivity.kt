@@ -661,6 +661,7 @@ LaunchedEffect(
                     "Главная" -> HomeScreen(
     appointments = appointments,
     sales = sales.filter { it.id > statsResetThroughId },
+    debts = debts,
     onOpenPlanner = { page = "План" }
 )
 
@@ -796,6 +797,7 @@ LaunchedEffect(
 
                     "Стата" -> StatisticsScreen(
     sales = sales.filter { it.id > statsResetThroughId },
+    debts = debts,
     onResetStats = {
         statsResetThroughId = sales.maxOfOrNull { it.id }
             ?: statsResetThroughId
@@ -815,6 +817,7 @@ LaunchedEffect(
 fun HomeScreen(
     appointments: List<Appointment>,
     sales: List<Sale>,
+    debts: List<Debt>,
     onOpenPlanner: () -> Unit
 ) {
     val upcoming = appointments.filter {
@@ -825,6 +828,8 @@ fun HomeScreen(
     val cost = sales.sumOf { it.cost }
     val delivery = sales.sumOf { it.deliveryFee }
     val profit = sales.sumOf { it.totalProfit }
+    val cashReceived = sales.filter { it.source != "В долг" }.sumOf { it.revenue } + debts.sumOf { it.paid }
+    val outstandingDebt = debts.sumOf { it.remaining }
 
     Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
         Text(
@@ -844,6 +849,10 @@ fun HomeScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             MetricCard("Себестоимость", cost, Modifier.weight(1f))
             MetricCard("Доставка", delivery, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+            MetricCard("Получено денег", cashReceived, Modifier.weight(1f))
+            MetricCard("Долги", outstandingDebt, Modifier.weight(1f))
         }
 
         Spacer(Modifier.height(5.dp))
@@ -1937,6 +1946,7 @@ fun SaleForm(
 @Composable
 fun StatisticsScreen(
     sales: List<Sale>,
+    debts: List<Debt>,
     onResetStats: () -> Unit,
     onResetSales: () -> Unit
 ) {
@@ -1948,6 +1958,8 @@ fun StatisticsScreen(
     val productProfit = sales.sumOf { it.productProfit }
     val delivery = sales.sumOf { it.deliveryFee }
     val totalProfit = sales.sumOf { it.totalProfit }
+    val cashReceived = sales.filter { it.source != "В долг" }.sumOf { it.revenue } + debts.sumOf { it.paid }
+    val outstandingDebt = debts.sumOf { it.remaining }
 
     Column(verticalArrangement = Arrangement.spacedBy(13.dp)) {
         Text(
@@ -1967,6 +1979,8 @@ fun StatisticsScreen(
         HorizontalDivider(color = Muted)
 
         StatisticRow("Общая прибыль", totalProfit, true)
+        StatisticRow("Получено денег", cashReceived)
+        StatisticRow("Остаток долгов", outstandingDebt)
 
         Spacer(Modifier.height(10.dp))
 
