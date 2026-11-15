@@ -10,13 +10,11 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-private const val TWELVE_HOURS_MILLIS = 12L * 60L * 60L * 1000L
 private const val ONE_HOUR_MILLIS = 60L * 60L * 1000L
 private const val SNOOZE_MILLIS = 10L * 60L * 1000L
 
-internal const val REMINDER_TYPE_12_HOURS = 1
-internal const val REMINDER_TYPE_1_HOUR = 2
-internal const val REMINDER_TYPE_SNOOZE = 3
+internal const val REMINDER_TYPE_1_HOUR = 1
+internal const val REMINDER_TYPE_SNOOZE = 2
 
 internal const val ACTION_COMPLETE_APPOINTMENT = "com.timsales.app.ACTION_COMPLETE_APPOINTMENT"
 internal const val ACTION_SNOOZE_APPOINTMENT = "com.timsales.app.ACTION_SNOOZE_APPOINTMENT"
@@ -72,9 +70,9 @@ private fun setReminderAlarm(
 internal fun cancelAppointmentReminders(context: Context, appointmentId: Int) {
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
     listOf(
-        REMINDER_TYPE_12_HOURS,
         REMINDER_TYPE_1_HOUR,
-        REMINDER_TYPE_SNOOZE
+        REMINDER_TYPE_SNOOZE,
+        3
     ).forEach { type ->
         val requestCode = reminderRequestCode(appointmentId, type)
         val intent = Intent(context, AppointmentReminderReceiver::class.java)
@@ -148,18 +146,13 @@ fun scheduleAppointmentReminders(
             null
         } ?: return@forEach
 
-        listOf(
-            REMINDER_TYPE_12_HOURS to TWELVE_HOURS_MILLIS,
-            REMINDER_TYPE_1_HOUR to ONE_HOUR_MILLIS
-        ).forEach { (type, offset) ->
-            val reminderTime = meetingTime - offset
-            if (reminderTime > now) {
-                setReminderAlarm(
-                    context,
-                    reminderTime,
-                    reminderPendingIntent(context, appointment, type)
-                )
-            }
+        val reminderTime = meetingTime - ONE_HOUR_MILLIS
+        if (reminderTime > now) {
+            setReminderAlarm(
+                context,
+                reminderTime,
+                reminderPendingIntent(context, appointment, REMINDER_TYPE_1_HOUR)
+            )
         }
     }
 }
