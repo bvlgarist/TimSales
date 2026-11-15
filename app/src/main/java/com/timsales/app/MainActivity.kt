@@ -2,6 +2,9 @@ package com.timsales.app
 
 import android.os.Bundle
 import android.content.Context
+import android.media.AudioFormat
+import android.media.AudioManager
+import android.media.AudioTrack
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
@@ -31,6 +34,85 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+
+
+/**
+ * Короткие оригинальные сигналы TimSales.
+ * 1 — обычное сохранение, 2 — успешная продажа, 3 — получение оплаты.
+ */
+private object TimSalesSounds {
+    private const val SAMPLE_RATE = 44100
+
+    fun play(kind: Int) {
+        Thread {
+            try {
+                val notes = when (kind) {
+                    2 -> listOf(
+                        Note(783.99, 0.00, 0.25, 0.17),
+                        Note(987.77, 0.13, 0.30, 0.16)
+                    )
+                    3 -> listOf(
+                        Note(880.0, 0.00, 0.42, 0.13),
+                        Note(1108.73, 0.00, 0.42, 0.055),
+                        Note(1760.0, 0.00, 0.42, 0.013)
+                    )
+                    else -> listOf(
+                        Note(1046.50, 0.00, 0.20, 0.16),
+                        Note(1568.0, 0.00, 0.20, 0.035),
+                        Note(1318.51, 0.105, 0.23, 0.14),
+                        Note(1976.0, 0.105, 0.23, 0.023)
+                    )
+                }
+                val duration = notes.maxOf { it.start + it.duration } + 0.06
+                val count = (duration * SAMPLE_RATE).toInt()
+                val pcm = ShortArray(count)
+                notes.forEach { note ->
+                    val start = (note.start * SAMPLE_RATE).toInt()
+                    val length = (note.duration * SAMPLE_RATE).toInt()
+                    for (i in 0 until length) {
+                        val t = i.toDouble() / SAMPLE_RATE
+                        val attack = minOf(1.0, t / 0.012)
+                        val envelope = attack * kotlin.math.exp(-5.5 * t / note.duration)
+                        val fundamental = kotlin.math.sin(2.0 * Math.PI * note.frequency * t)
+                        val harmonic = kotlin.math.sin(2.0 * Math.PI * note.frequency * 2.0 * t) * 0.10
+                        val sample = (fundamental + harmonic) * envelope * note.volume
+                        val index = start + i
+                        if (index in pcm.indices) {
+                            val mixed = pcm[index].toInt() + (sample * 32767.0).toInt()
+                            pcm[index] = mixed.coerceIn(-32768, 32767).toShort()
+                        }
+                    }
+                }
+                val track = AudioTrack(
+                    AudioManager.STREAM_MUSIC,
+                    SAMPLE_RATE,
+                    AudioFormat.CHANNEL_OUT_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT,
+                    pcm.size * 2,
+                    AudioTrack.MODE_STATIC
+                )
+                try {
+                    track.write(pcm, 0, pcm.size)
+                    track.setVolume(0.72f)
+                    track.play()
+                    Thread.sleep((duration * 1000).toLong() + 80)
+                } finally {
+                    if (track.playState == AudioTrack.PLAYSTATE_PLAYING) track.stop()
+                    track.release()
+                }
+            } catch (_: Exception) {
+                // Звук не должен влиять на сохранение данных или работу приложения.
+            }
+        }.start()
+    }
+
+    private data class Note(
+        val frequency: Double,
+        val start: Double,
+        val duration: Double,
+        val volume: Double
+    )
+}
 
 private val Bg = Color(0xFF101410)
 private val Panel = Color(0xFF1C241F)
@@ -867,6 +949,7 @@ fun PlannerScreen(
             initial = editing,
             onDismiss = { showForm = false },
             onSave = { client, date, time, place, productsText ->
+                TimSalesSounds.play(1)
                 if (editing == null) {
                     onAdd(client, date, time, place, productsText)
                 } else {
@@ -1299,6 +1382,7 @@ fun ProductsScreen(
             initial = editing,
             onDismiss = { showForm = false },
             onSave = { name, buy, sell ->
+                TimSalesSounds.play(1)
                 if (editing == null) {
                     onAdd(name, buy, sell)
                 } else {
@@ -1451,6 +1535,7 @@ fun SalesScreen(
             onDismiss = { showForm = false },
             onSave = { name, quantity, buy, sell, delivery ->
                 if (editing == null) {
+                    TimSalesSounds.play(2)
                     onAdd(name, quantity, buy, sell, delivery)
                 } else {
                     onUpdate(
@@ -2011,6 +2096,7 @@ fun DebtsScreen(
             initial = editing,
             onDismiss = { showForm = false },
             onSave = { debtor, date, amount, note ->
+                TimSalesSounds.play(1)
                 if (editing == null) {
                     onAdd(debtor, date, amount, note)
                 } else {
@@ -2033,6 +2119,7 @@ fun DebtsScreen(
             remaining = debt.remaining,
             onDismiss = { paymentDebt = null },
             onSave = { date, amount ->
+                TimSalesSounds.play(3)
                 onAddPayment(debt.id, date, amount)
                 paymentDebt = null
             }
