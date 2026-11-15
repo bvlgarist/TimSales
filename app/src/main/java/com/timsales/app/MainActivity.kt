@@ -1310,6 +1310,7 @@ fun AppointmentForm(
                             OutlinedButton(
                                 onClick = {
                                     val lines = productsText
+                                        .replace("\\n", "\n")
                                         .lines()
                                         .map { it.trim() }
                                         .filter { it.isNotBlank() }
@@ -1330,7 +1331,7 @@ fun AppointmentForm(
                                         lines.add("${product.name} × 1")
                                     }
 
-                                    productsText = lines.joinToString("\\n")
+                                    productsText = lines.joinToString("\n")
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
