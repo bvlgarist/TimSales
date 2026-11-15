@@ -1232,9 +1232,11 @@ fun AppointmentForm(
     var productsText by remember(initial) {
         mutableStateOf(initial?.products ?: "")
     }
-    var deliveryFeeText by remember(initial) {
-        mutableStateOf(initial?.deliveryFee?.let { money(it) } ?: "0")
+    val deliveryOptions = listOf("---") + (1..10).map { it.toString() }
+    var selectedDelivery by remember(initial) {
+        mutableStateOf(initial?.deliveryFee?.toInt()?.takeIf { it in 1..10 && initial.deliveryFee == it.toDouble() }?.toString() ?: "---")
     }
+    var deliveryMenuExpanded by remember { mutableStateOf(false) }
     var showCalendar by remember { mutableStateOf(false) }
     var showProductPicker by remember { mutableStateOf(false) }
 
@@ -1358,10 +1360,37 @@ fun AppointmentForm(
                     place = it
                 }
 
-                FormField("Стоимость доставки (AZN)", deliveryFeeText, keyboardType = KeyboardType.Decimal) {
-                    deliveryFeeText = it
+                Text("Доставка", color = White, fontWeight = FontWeight.SemiBold)
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedButton(
+                        onClick = { deliveryMenuExpanded = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(selectedDelivery, color = Green)
+                        Spacer(Modifier.weight(1f))
+                        Text("⌄", color = Muted)
+                    }
+                    DropdownMenu(
+                        expanded = deliveryMenuExpanded,
+                        onDismissRequest = { deliveryMenuExpanded = false },
+                        modifier = Modifier.background(Panel)
+                    ) {
+                        deliveryOptions.forEach { option ->
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        option,
+                                        color = if (selectedDelivery == option) Green else White
+                                    )
+                                },
+                                onClick = {
+                                    selectedDelivery = option
+                                    deliveryMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
                 }
-                Text("Если доставка бесплатная, оставь 0.", color = Muted, fontSize = 12.sp)
 
                 Text("Товары и количество", color = White, fontWeight = FontWeight.SemiBold)
                 OutlinedButton(
@@ -1385,8 +1414,8 @@ fun AppointmentForm(
         confirmButton = {
             TextButton(
                 onClick = {
-                    val deliveryFee = deliveryFeeText.replace(",", ".").toDoubleOrNull()
-                    if (client.isNotBlank() && deliveryFee != null && deliveryFee >= 0) {
+                    val deliveryFee = selectedDelivery.toDoubleOrNull() ?: 0.0
+                    if (client.isNotBlank()) {
                         onSave(
                             client.trim(),
                             dateText(selectedDate),
