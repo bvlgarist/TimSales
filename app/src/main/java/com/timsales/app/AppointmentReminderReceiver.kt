@@ -26,6 +26,11 @@ class AppointmentReminderReceiver : BroadcastReceiver() {
             ACTION_COMPLETE_APPOINTMENT -> {
                 markAppointmentCompleted(context, appointmentId)
                 cancelAppointmentReminders(context, appointmentId)
+                val openApp = Intent(context, MainActivity::class.java).apply {
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or
+                        Intent.FLAG_ACTIVITY_CLEAR_TASK
+                }
+                context.startActivity(openApp)
                 return
             }
             ACTION_SNOOZE_APPOINTMENT -> {
@@ -99,10 +104,10 @@ class AppointmentReminderReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
-        val title = when (reminderType) {
-            REMINDER_TYPE_12_HOURS -> "Встреча через 12 часов: $client"
-            REMINDER_TYPE_SNOOZE -> "Напоминание о встрече: $client"
-            else -> "Встреча через 1 час: $client"
+        val title = if (reminderType == REMINDER_TYPE_SNOOZE) {
+            "Напоминание о встрече: $client"
+        } else {
+            "Встреча через 1 час: $client"
         }
 
         val builder = if (Build.VERSION.SDK_INT >= 26) {
