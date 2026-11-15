@@ -1066,7 +1066,7 @@ fun PlannerScreen(
             onSave = { client, date, time, place, productsText, deliveryFee ->
                 TimSalesSounds.play(1)
                 if (editing == null) {
-                    onAdd(client, date, time, place, productsText)
+                    onAdd(client, date, time, place, productsText, deliveryFee)
                 } else {
                     onUpdate(
                         editing!!.copy(
