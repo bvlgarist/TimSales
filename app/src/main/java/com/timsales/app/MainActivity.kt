@@ -737,12 +737,21 @@ LaunchedEffect(
     onUpdate = { updated ->
         val index = debts.indexOfFirst { it.id == updated.id }
         if (index >= 0) {
+            val previous = debts[index]
             debts[index] = updated
-            sales.removeAll { it.source == "В долг" && it.referenceId == updated.id }
-            parseProductLines(updated.productsText).forEach { (name, quantity) ->
-                val product = products.firstOrNull { it.name.equals(name, ignoreCase = true) }
-                if (product != null) sales.add(Sale(nextSaleId++, updated.date, product.name,
-                    quantity, product.buyPrice, product.sellPrice, 0.0, "В долг", updated.debtor, updated.id))
+            val linkedSales = sales.filter { it.source == "В долг" && it.referenceId == updated.id }
+            if (previous.productsText != updated.productsText) {
+                sales.removeAll { it.source == "В долг" && it.referenceId == updated.id }
+                parseProductLines(updated.productsText).forEach { (name, quantity) ->
+                    val product = products.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                    if (product != null) sales.add(Sale(nextSaleId++, updated.date, product.name,
+                        quantity, product.buyPrice, product.sellPrice, 0.0, "В долг", updated.debtor, updated.id))
+                }
+            } else {
+                linkedSales.forEach { sale ->
+                    val saleIndex = sales.indexOfFirst { it.id == sale.id }
+                    if (saleIndex >= 0) sales[saleIndex] = sale.copy(date = updated.date, client = updated.debtor)
+                }
             }
         }
     },
@@ -2293,6 +2302,7 @@ fun DebtForm(
         },
         text = {
             Column(
+                modifier = Modifier.heightIn(max = 450.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 FormField("Имя должника", debtor) {
@@ -2327,13 +2337,16 @@ fun DebtForm(
                 onClick = {
                     val enteredAmount = amount.replace(",", ".").toDoubleOrNull()
                     val itemLines = parseProductLines(productsText)
+                    val matchedCount = itemLines.count { (name, _) ->
+                        products.any { it.name.equals(name, ignoreCase = true) }
+                    }
                     val itemTotal = itemLines.sumOf { (name, qty) ->
                         (products.firstOrNull { it.name.equals(name, ignoreCase = true) }?.sellPrice ?: 0.0) * qty
                     }
                     val finalAmount = if (productsText.isNotBlank()) itemTotal else enteredAmount ?: 0.0
 
                     if (debtor.isNotBlank() && date.isNotBlank() && finalAmount > 0 &&
-                        (productsText.isBlank() || itemLines.isNotEmpty()) &&
+                        (productsText.isBlank() || (itemLines.isNotEmpty() && matchedCount == itemLines.size)) &&
                         (initial == null || finalAmount >= initial.paid)) {
                         onSave(debtor.trim(), date.trim(), finalAmount, note.trim(), productsText.trim())
                     }
