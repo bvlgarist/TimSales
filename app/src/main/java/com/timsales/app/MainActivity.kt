@@ -1309,14 +1309,28 @@ fun AppointmentForm(
                         products.forEach { product ->
                             OutlinedButton(
                                 onClick = {
-                                    val entry = "${product.name} × 1"
-                                    productsText = if (productsText.isBlank()) {
-                                        entry
-                                    } else if (productsText.contains(product.name)) {
-                                        productsText
-                                    } else {
-                                        productsText.trimEnd() + "\\n" + entry
+                                    val lines = productsText
+                                        .lines()
+                                        .map { it.trim() }
+                                        .filter { it.isNotBlank() }
+                                        .toMutableList()
+                                    val existingIndex = lines.indexOfFirst { line ->
+                                        val separatorIndex = line.lastIndexOf(" × ")
+                                        separatorIndex > 0 &&
+                                            line.substring(0, separatorIndex).trim() == product.name
                                     }
+
+                                    if (existingIndex >= 0) {
+                                        val currentLine = lines[existingIndex]
+                                        val quantity = currentLine
+                                            .substringAfterLast(" × ")
+                                            .toIntOrNull() ?: 1
+                                        lines[existingIndex] = "${product.name} × ${quantity + 1}"
+                                    } else {
+                                        lines.add("${product.name} × 1")
+                                    }
+
+                                    productsText = lines.joinToString("\\n")
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
