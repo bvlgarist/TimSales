@@ -510,6 +510,9 @@ fun TimSalesApp() {
     var statsResetThroughId by remember {
         mutableIntStateOf(prefs.getInt("statsResetThroughId", 0))
     }
+    var completedAppointmentsMigrated by remember {
+        mutableStateOf(prefs.getBoolean("completedAppointmentsMigrated", false))
+    }
 
     var nextSaleId by remember {
         mutableIntStateOf(
@@ -553,8 +556,24 @@ LaunchedEffect(
     remindersEnabled,
     nextSaleId,
     nextDebtId,
-    nextDebtPaymentId
+    nextDebtPaymentId,
+    completedAppointmentsMigrated
 ) {
+    if (!completedAppointmentsMigrated) {
+        appointments.filter { it.status == "Завершена" }.forEach { appointment ->
+            val recorded = sales.any { it.source == "Встреча" && it.referenceId == appointment.id }
+            if (!recorded) {
+                parseProductLines(appointment.products).forEach { (name, quantity) ->
+                    val product = products.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                    if (product != null) sales.add(
+                        Sale(nextSaleId++, appointment.date, product.name, quantity,
+                            product.buyPrice, product.sellPrice, 0.0, "Встреча", appointment.client, appointment.id)
+                    )
+                }
+            }
+        }
+        completedAppointmentsMigrated = true
+    }
     saveData(context, products, appointments, sales, debts)
     scheduleAppointmentReminders(context, appointments, remindersEnabled)
 
@@ -564,6 +583,7 @@ LaunchedEffect(
         .putInt("nextSaleId", nextSaleId)
         .putInt("nextDebtId", nextDebtId)
         .putInt("nextDebtPaymentId", nextDebtPaymentId)
+        .putBoolean("completedAppointmentsMigrated", completedAppointmentsMigrated)
         .apply()
 }
 
@@ -2343,7 +2363,9 @@ fun DebtForm(
                     val itemTotal = itemLines.sumOf { (name, qty) ->
                         (products.firstOrNull { it.name.equals(name, ignoreCase = true) }?.sellPrice ?: 0.0) * qty
                     }
-                    val finalAmount = if (productsText.isNotBlank()) itemTotal else enteredAmount ?: 0.0
+                    val finalAmount = if (productsText.isNotBlank()) {
+                        if (initial != null && productsText.trim() == initial.productsText.trim()) initial.amount else itemTotal
+                    } else enteredAmount ?: 0.0
 
                     if (debtor.isNotBlank() && date.isNotBlank() && finalAmount > 0 &&
                         (productsText.isBlank() || (itemLines.isNotEmpty() && matchedCount == itemLines.size)) &&
