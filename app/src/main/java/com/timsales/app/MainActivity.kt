@@ -631,6 +631,7 @@ LaunchedEffect(
 
                     "План" -> PlannerScreen(
                         appointments = appointments,
+                        products = products,
                         onAdd = { client, date, time, place, productsText ->
                             appointments.add(
                                 Appointment(
@@ -844,6 +845,7 @@ fun MetricCard(
 @Composable
 fun PlannerScreen(
     appointments: SnapshotStateList<Appointment>,
+    products: SnapshotStateList<Product>,
     onAdd: (String, String, String, String, String) -> Unit,
     onUpdate: (Appointment) -> Unit,
     remindersEnabled: Boolean,
@@ -956,6 +958,7 @@ fun PlannerScreen(
     if (showForm) {
         AppointmentForm(
             initial = editing,
+            products = products,
             onDismiss = { showForm = false },
             onSave = { client, date, time, place, productsText ->
                 TimSalesSounds.play(1)
@@ -1095,6 +1098,7 @@ fun AppointmentCard(
 @Composable
 fun AppointmentForm(
     initial: Appointment?,
+    products: List<Product>,
     onDismiss: () -> Unit,
     onSave: (String, String, String, String, String) -> Unit
 ) {
@@ -1122,6 +1126,7 @@ fun AppointmentForm(
         mutableStateOf(initial?.products ?: "")
     }
     var showCalendar by remember { mutableStateOf(false) }
+    var showProductPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1243,8 +1248,18 @@ fun AppointmentForm(
                     place = it
                 }
 
+                Text("Товары и количество", color = White, fontWeight = FontWeight.SemiBold)
+                OutlinedButton(
+                    onClick = { showProductPicker = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        if (products.isEmpty()) "Каталог товаров пуст" else "Выбрать из каталога (${products.size})",
+                        color = Green
+                    )
+                }
                 FormField(
-                    "Товары и количество",
+                    "Выбранные товары (можно изменить вручную)",
                     productsText,
                     singleLine = false
                 ) {
@@ -1275,6 +1290,56 @@ fun AppointmentForm(
             }
         }
     )
+
+    if (showProductPicker) {
+        AlertDialog(
+            onDismissRequest = { showProductPicker = false },
+            containerColor = Panel,
+            title = { Text("Выбрать товары", color = Green) },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .heightIn(max = 360.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    if (products.isEmpty()) {
+                        Text("Сначала добавь товары в разделе «Товары».", color = Muted)
+                    } else {
+                        products.forEach { product ->
+                            OutlinedButton(
+                                onClick = {
+                                    val entry = "${product.name} × 1"
+                                    productsText = if (productsText.isBlank()) {
+                                        entry
+                                    } else if (productsText.contains(product.name)) {
+                                        productsText
+                                    } else {
+                                        productsText.trimEnd() + "\\n" + entry
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth()) {
+                                    Text(product.name, color = Green)
+                                    Text(
+                                        "Продажа: ${money(product.sellPrice)} AZN",
+                                        color = Muted,
+                                        fontSize = 12.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showProductPicker = false }) {
+                    Text("Готово", color = Green)
+                }
+            }
+        )
+    }
 
     if (showCalendar) {
         val pickerState = rememberDatePickerState(
