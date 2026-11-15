@@ -2183,6 +2183,12 @@ fun DebtsScreen(
                 )
 
                 Text("Дата: ${debt.date}", color = Muted)
+                if (debt.productsText.isNotBlank()) {
+                    Text("Товары:", color = Green, fontWeight = FontWeight.SemiBold)
+                    parseProductLines(debt.productsText).forEach { (name, quantity) ->
+                        Text("${name} × ${quantity}", color = White)
+                    }
+                }
                 Text("Первоначальный долг: ${money(debt.amount)} AZN", color = White)
                 Text("Оплачено: ${money(debt.paid)} AZN", color = White)
 
