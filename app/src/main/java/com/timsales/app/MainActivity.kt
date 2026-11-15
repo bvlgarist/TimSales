@@ -8,6 +8,7 @@ import android.media.AudioTrack
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,6 +23,7 @@ import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
@@ -578,16 +580,22 @@ LaunchedEffect(
                             selected = page == item,
                             onClick = { page = item },
                             icon = {
-                                Text(
-                                    when (item) {
-                                        "Главная" -> "⌂"
-                                        "План" -> "📅"
-                                        "Товары" -> "📦"
-                                        "Продажи" -> "💰"
-                                        "Долги" -> "🧾"
-                                        else -> "📊"
-                                    },
-                                    fontSize = 17.sp
+                                val iconRes = when (item) {
+                                    "Главная" -> R.drawable.ic_nav_home
+                                    "План" -> R.drawable.ic_nav_calendar
+                                    "Товары" -> R.drawable.ic_nav_products
+                                    "Продажи" -> R.drawable.ic_nav_sales
+                                    "Долги" -> R.drawable.ic_nav_debts
+                                    else -> R.drawable.ic_nav_stats
+                                }
+                                Image(
+                                    painter = androidx.compose.ui.res.painterResource(iconRes),
+                                    contentDescription = item,
+                                    modifier = Modifier.size(36.dp),
+                                    colorFilter = ColorFilter.tint(
+                                        if (page == item) Color(0xFF65D6A5)
+                                        else Color(0xFF78988A)
+                                    )
                                 )
                             },
                             label = {
