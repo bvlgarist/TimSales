@@ -142,13 +142,9 @@ data class Appointment(
 )
 
 data class Sale(
-    val id: Int,
-    val date: String,
-    val productName: String,
-    val quantity: Int,
-    val buyPrice: Double,
-    val sellPrice: Double,
-    val deliveryFee: Double
+    val id: Int, val date: String, val productName: String, val quantity: Int,
+    val buyPrice: Double, val sellPrice: Double, val deliveryFee: Double,
+    val source: String = "Обычная продажа", val client: String = "", val referenceId: Int = 0
 ) {
     val revenue: Double
         get() = sellPrice * quantity
@@ -176,7 +172,8 @@ data class Debt(
     val date: String,
     val amount: Double,
     val note: String,
-    val payments: List<DebtPayment> = emptyList()
+    val payments: List<DebtPayment> = emptyList(),
+    val productsText: String = ""
 ) {
     val paid: Double
         get() = payments.sumOf { it.amount }
@@ -226,6 +223,16 @@ fun dateText(millis: Long): String {
 fun currentLocalDateText(): String {
     return SimpleDateFormat("dd.MM.yyyy", Locale.getDefault())
         .format(Date())
+}
+
+fun parseProductLines(value: String): List<Pair<String, Int>> {
+    return value.replace("\\n", "\n").lines().mapNotNull { line ->
+        val separator = line.lastIndexOf(" × ")
+        if (separator <= 0) return@mapNotNull null
+        val name = line.substring(0, separator).trim()
+        val quantity = line.substring(separator + 3).trim().toIntOrNull()
+        if (name.isBlank() || quantity == null || quantity <= 0) null else name to quantity
+    }
 }
 
 fun dateMillis(value: String): Long {
@@ -308,7 +315,10 @@ fun loadSales(context: Context): List<Sale> {
                     quantity = item.getInt("quantity"),
                     buyPrice = item.getDouble("buyPrice"),
                     sellPrice = item.getDouble("sellPrice"),
-                    deliveryFee = item.optDouble("deliveryFee", 0.0)
+                    deliveryFee = item.optDouble("deliveryFee", 0.0),
+                    source = item.optString("source", "Обычная продажа"),
+                    client = item.optString("client", ""),
+                    referenceId = item.optInt("referenceId", 0)
                 )
             )
         }
@@ -351,7 +361,8 @@ fun loadDebts(context: Context): List<Debt> {
                     date = item.getString("date"),
                     amount = item.getDouble("amount"),
                     note = item.optString("note", ""),
-                    payments = payments
+                    payments = payments,
+                    productsText = item.optString("productsText", "")
                 )
             )
         }
@@ -408,6 +419,9 @@ fun saveData(
                 put("buyPrice", s.buyPrice)
                 put("sellPrice", s.sellPrice)
                 put("deliveryFee", s.deliveryFee)
+                put("source", s.source)
+                put("client", s.client)
+                put("referenceId", s.referenceId)
             }
         )
     }
@@ -433,6 +447,7 @@ fun saveData(
                 put("date", d.date)
                 put("amount", d.amount)
                 put("note", d.note)
+                put("productsText", d.productsText)
                 put("payments", paymentsArray)
             }
         )
@@ -645,10 +660,20 @@ LaunchedEffect(
                             )
                         },
                         onUpdate = { updated ->
-                            val index = appointments.indexOfFirst {
-                                it.id == updated.id
-                            }
+                            val index = appointments.indexOfFirst { it.id == updated.id }
                             if (index >= 0) appointments[index] = updated
+                        },
+                        onComplete = { appointment ->
+                            val recorded = sales.any { it.source == "Встреча" && it.referenceId == appointment.id }
+                            if (!recorded) parseProductLines(appointment.products).forEach { (name, quantity) ->
+                                val product = products.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                                if (product != null) sales.add(Sale(nextSaleId++, appointment.date,
+                                    product.name, quantity, product.buyPrice, product.sellPrice, 0.0,
+                                    "Встреча", appointment.client, appointment.id))
+                            }
+                            val index = appointments.indexOfFirst { it.id == appointment.id }
+                            if (index >= 0) appointments[index] = appointment.copy(status = "Завершена")
+                            if (sales.any { it.source == "Встреча" && it.referenceId == appointment.id }) TimSalesSounds.play(2)
                         },
                         remindersEnabled = remindersEnabled,
                         onRemindersEnabledChange = { remindersEnabled = it }
@@ -698,24 +723,33 @@ LaunchedEffect(
                     
 "Долги" -> DebtsScreen(
     debts = debts,
-    onAdd = { debtor, date, amount, note ->
-        debts.add(
-            Debt(
-                id = nextDebtId++,
-                debtor = debtor,
-                date = date,
-                amount = amount,
-                note = note
-            )
-        )
+    products = products,
+    onAdd = { debtor, date, amount, note, productsText ->
+        val debtId = nextDebtId++
+        debts.add(Debt(debtId, debtor, date, amount, note, productsText = productsText))
+        parseProductLines(productsText).forEach { (name, quantity) ->
+            val product = products.firstOrNull { it.name.equals(name, ignoreCase = true) }
+            if (product != null) sales.add(Sale(nextSaleId++, date, product.name, quantity,
+                product.buyPrice, product.sellPrice, 0.0, "В долг", debtor, debtId))
+        }
+        if (productsText.isNotBlank()) TimSalesSounds.play(2)
     },
     onUpdate = { updated ->
-        val index = debts.indexOfFirst {
-            it.id == updated.id
+        val index = debts.indexOfFirst { it.id == updated.id }
+        if (index >= 0) {
+            debts[index] = updated
+            sales.removeAll { it.source == "В долг" && it.referenceId == updated.id }
+            parseProductLines(updated.productsText).forEach { (name, quantity) ->
+                val product = products.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                if (product != null) sales.add(Sale(nextSaleId++, updated.date, product.name,
+                    quantity, product.buyPrice, product.sellPrice, 0.0, "В долг", updated.debtor, updated.id))
+            }
         }
-        if (index >= 0) debts[index] = updated
     },
-    onDelete = { debts.remove(it) },
+    onDelete = { debt ->
+        debts.remove(debt)
+        sales.removeAll { it.source == "В долг" && it.referenceId == debt.id }
+    },
     onAddPayment = { debtId, date, amount ->
         val index = debts.indexOfFirst {
             it.id == debtId
@@ -848,6 +882,7 @@ fun PlannerScreen(
     products: SnapshotStateList<Product>,
     onAdd: (String, String, String, String, String) -> Unit,
     onUpdate: (Appointment) -> Unit,
+    onComplete: (Appointment) -> Unit,
     remindersEnabled: Boolean,
     onRemindersEnabledChange: (Boolean) -> Unit
 ) {
@@ -918,9 +953,7 @@ fun PlannerScreen(
                     editing = appointment
                     showForm = true
                 },
-                onComplete = {
-                    onUpdate(appointment.copy(status = "Завершена"))
-                },
+                onComplete = { onComplete(appointment) },
                 onCancel = {
                     onUpdate(appointment.copy(status = "Отменена"))
                 }
@@ -2053,7 +2086,8 @@ fun FormField(
 @Composable
 fun DebtsScreen(
     debts: SnapshotStateList<Debt>,
-    onAdd: (String, String, Double, String) -> Unit,
+    products: SnapshotStateList<Product>,
+    onAdd: (String, String, Double, String, String) -> Unit,
     onUpdate: (Debt) -> Unit,
     onDelete: (Debt) -> Unit,
     onAddPayment: (Int, String, Double) -> Unit
@@ -2191,18 +2225,20 @@ fun DebtsScreen(
     if (showForm) {
         DebtForm(
             initial = editing,
+            products = products,
             onDismiss = { showForm = false },
-            onSave = { debtor, date, amount, note ->
+            onSave = { debtor, date, amount, note, productsText ->
                 TimSalesSounds.play(1)
                 if (editing == null) {
-                    onAdd(debtor, date, amount, note)
+                    onAdd(debtor, date, amount, note, productsText)
                 } else {
                     onUpdate(
                         editing!!.copy(
                             debtor = debtor,
                             date = date,
                             amount = amount,
-                            note = note
+                            note = note,
+                            productsText = productsText
                         )
                     )
                 }
@@ -2228,8 +2264,9 @@ fun DebtsScreen(
 @Composable
 fun DebtForm(
     initial: Debt?,
+    products: List<Product>,
     onDismiss: () -> Unit,
-    onSave: (String, String, Double, String) -> Unit
+    onSave: (String, String, Double, String, String) -> Unit
 ) {
     var debtor by remember(initial) {
         mutableStateOf(initial?.debtor ?: "")
@@ -2240,9 +2277,9 @@ fun DebtForm(
     var amount by remember(initial) {
         mutableStateOf(initial?.amount?.toString() ?: "")
     }
-    var note by remember(initial) {
-        mutableStateOf(initial?.note ?: "")
-    }
+    var note by remember(initial) { mutableStateOf(initial?.note ?: "") }
+    var productsText by remember(initial) { mutableStateOf(initial?.productsText ?: "") }
+    var showProductPicker by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2270,13 +2307,18 @@ fun DebtForm(
                 ) {
                     amount = it
                 }
-                FormField(
-                    "Примечание",
-                    note,
-                    singleLine = false
-                ) {
-                    note = it
+                Text("Товары и количество", color = White, fontWeight = FontWeight.SemiBold)
+                OutlinedButton(onClick = { showProductPicker = true }, modifier = Modifier.fillMaxWidth()) {
+                    Text("Выбрать товары из каталога", color = Green)
                 }
+                FormField("Список товаров (название × количество)", productsText, singleLine = false) { productsText = it }
+                if (productsText.isNotBlank()) {
+                    val calculatedTotal = parseProductLines(productsText).sumOf { (name, qty) ->
+                        (products.firstOrNull { it.name.equals(name, ignoreCase = true) }?.sellPrice ?: 0.0) * qty
+                    }
+                    Text("Стоимость выбранных товаров: ${money(calculatedTotal)} AZN", color = Green)
+                }
+                FormField("Примечание", note, singleLine = false) { note = it }
             }
         },
         confirmButton = {
@@ -2294,8 +2336,13 @@ fun DebtForm(
                         onSave(
                             debtor.trim(),
                             date.trim(),
-                            value,
-                            note.trim()
+                            if (productsText.isNotBlank()) {
+                                parseProductLines(productsText).sumOf { (name, qty) ->
+                                    (products.firstOrNull { it.name.equals(name, ignoreCase = true) }?.sellPrice ?: 0.0) * qty
+                                }
+                            } else value,
+                            note.trim(),
+                            productsText.trim()
                         )
                     }
                 }
@@ -2309,6 +2356,42 @@ fun DebtForm(
             }
         }
     )
+
+    if (showProductPicker) {
+        AlertDialog(
+            onDismissRequest = { showProductPicker = false },
+            containerColor = Panel,
+            title = { Text("Товары в долг", color = Green) },
+            text = {
+                Column(Modifier.heightIn(max = 340.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (products.isEmpty()) Text("Сначала добавь товары в каталог.", color = Muted)
+                    products.forEach { product ->
+                        OutlinedButton(onClick = {
+                            val lines = productsText.replace("\\n", "\n").lines()
+                                .map { it.trim() }.filter { it.isNotBlank() }.toMutableList()
+                            val index = lines.indexOfFirst { line ->
+                                val split = line.lastIndexOf(" × ")
+                                split > 0 && line.substring(0, split).trim() == product.name
+                            }
+                            if (index >= 0) {
+                                val current = lines[index]
+                                val qty = current.substringAfterLast(" × ").toIntOrNull() ?: 1
+                                lines[index] = "${product.name} × ${qty + 1}"
+                            } else lines.add("${product.name} × 1")
+                            productsText = lines.joinToString("\n")
+                        }, modifier = Modifier.fillMaxWidth()) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(product.name, color = Green)
+                                Text("Цена: ${money(product.sellPrice)} AZN", color = Muted, fontSize = 12.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = { showProductPicker = false }) { Text("Готово", color = Green) } }
+        )
+    }
 }
 
 @Composable
