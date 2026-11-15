@@ -773,7 +773,7 @@ fun PlannerScreen(
         verticalAlignment = Alignment.CenterVertically
 ) {
     Column {
-        Text("Напоминания за 1 час", color = White)
+        Text("Напоминания за 12 часов и 1 час", color = White)
         Text(
             "Уведомлять о предстоящих встречах",
             color = Muted,
