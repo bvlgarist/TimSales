@@ -746,10 +746,7 @@ LaunchedEffect(
             }
         }
     },
-    onDelete = { debt ->
-        debts.remove(debt)
-        sales.removeAll { it.source == "В долг" && it.referenceId == debt.id }
-    },
+    onDelete = { debt -> debts.remove(debt) },
     onAddPayment = { debtId, date, amount ->
         val index = debts.indexOfFirst {
             it.id == debtId
@@ -1703,6 +1700,10 @@ fun SaleCard(
         )
 
         Text("Дата: ${sale.date}", color = Muted)
+        if (sale.source != "Обычная продажа") {
+            Text("Источник: ${sale.source}", color = Green, fontWeight = FontWeight.SemiBold)
+            if (sale.client.isNotBlank()) Text("Клиент: ${sale.client}", color = Muted)
+        }
         Text("Количество: ${sale.quantity}", color = White)
         Text("Выручка: ${money(sale.revenue)} AZN", color = White)
         Text("Себестоимость: ${money(sale.cost)} AZN", color = White)
@@ -2301,7 +2302,7 @@ fun DebtForm(
                     date = it
                 }
                 FormField(
-                    "Сумма долга (AZN)",
+                    "Сумма долга (AZN, если без списка товаров)",
                     amount,
                     keyboardType = KeyboardType.Decimal
                 ) {
@@ -2324,26 +2325,17 @@ fun DebtForm(
         confirmButton = {
             TextButton(
                 onClick = {
-                    val value = amount.replace(",", ".").toDoubleOrNull()
+                    val enteredAmount = amount.replace(",", ".").toDoubleOrNull()
+                    val itemLines = parseProductLines(productsText)
+                    val itemTotal = itemLines.sumOf { (name, qty) ->
+                        (products.firstOrNull { it.name.equals(name, ignoreCase = true) }?.sellPrice ?: 0.0) * qty
+                    }
+                    val finalAmount = if (productsText.isNotBlank()) itemTotal else enteredAmount ?: 0.0
 
-                    if (
-                        debtor.isNotBlank() &&
-                        date.isNotBlank() &&
-                        value != null &&
-                        value > 0 &&
-                        (initial == null || value >= initial.paid)
-                    ) {
-                        onSave(
-                            debtor.trim(),
-                            date.trim(),
-                            if (productsText.isNotBlank()) {
-                                parseProductLines(productsText).sumOf { (name, qty) ->
-                                    (products.firstOrNull { it.name.equals(name, ignoreCase = true) }?.sellPrice ?: 0.0) * qty
-                                }
-                            } else value,
-                            note.trim(),
-                            productsText.trim()
-                        )
+                    if (debtor.isNotBlank() && date.isNotBlank() && finalAmount > 0 &&
+                        (productsText.isBlank() || itemLines.isNotEmpty()) &&
+                        (initial == null || finalAmount >= initial.paid)) {
+                        onSave(debtor.trim(), date.trim(), finalAmount, note.trim(), productsText.trim())
                     }
                 }
             ) {
