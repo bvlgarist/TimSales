@@ -17,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -1138,8 +1139,14 @@ fun AppointmentForm(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp)
             ) {
-                FormField("Имя клиента", client) {
-                    client = it
+                FormField(
+                    "Имя клиента",
+                    client,
+                    capitalization = KeyboardCapitalization.Words
+                ) {
+                    client = it.replaceFirstChar { first ->
+                        first.titlecase(Locale.getDefault())
+                    }
                 }
 
                 OutlinedButton(
@@ -1946,6 +1953,7 @@ fun FormField(
     value: String,
     singleLine: Boolean = true,
     keyboardType: KeyboardType = KeyboardType.Text,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
     onValueChange: (String) -> Unit
 ) {
     OutlinedTextField(
@@ -1955,7 +1963,8 @@ fun FormField(
         modifier = Modifier.fillMaxWidth(),
         singleLine = singleLine,
         keyboardOptions = KeyboardOptions(
-            keyboardType = keyboardType
+            keyboardType = keyboardType,
+            capitalization = capitalization
         )
     )
 }
