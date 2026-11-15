@@ -107,6 +107,18 @@ data class Debt(
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        if (
+            android.os.Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) !=
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                1001
+            )
+        }
+
         setContent {
             TimSalesApp()
         }
@@ -773,7 +785,7 @@ fun PlannerScreen(
         verticalAlignment = Alignment.CenterVertically
 ) {
     Column {
-        Text("Напоминания за 12 часов и 1 час", color = White)
+        Text("Напоминания за 1 час до встречи", color = White)
         Text(
             "Уведомлять о предстоящих встречах",
             color = Muted,
