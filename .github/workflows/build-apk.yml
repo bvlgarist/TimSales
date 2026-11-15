@@ -1,4 +1,3 @@
-
 name: Build TimSales APK
 
 on:
@@ -26,6 +25,12 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Install exact TimSales launcher icon resources
+        run: |
+          if [ -f TimSales_Exact_Icon_Resources.zip ]; then
+            unzip -o TimSales_Exact_Icon_Resources.zip -d .
+          fi
+
       - name: Build APK
         run: gradle assembleDebug
 
@@ -34,4 +39,3 @@ jobs:
         with:
           name: TimSales-APK
           path: app/build/outputs/apk/debug/app-debug.apk
-          
