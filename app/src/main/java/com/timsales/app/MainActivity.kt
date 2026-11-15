@@ -138,7 +138,8 @@ data class Appointment(
     val time: String,
     val place: String,
     val products: String,
-    val status: String = "Предстоящая"
+    val status: String = "Предстоящая",
+    val deliveryFee: Double = 0.0
 )
 
 data class Sale(
@@ -287,7 +288,8 @@ fun loadAppointments(context: Context): List<Appointment> {
                     item.getString("time"),
                     item.getString("place"),
                     item.getString("products"),
-                    item.optString("status", "Предстоящая")
+                    item.optString("status", "Предстоящая"),
+                    item.optDouble("deliveryFee", 0.0)
                 )
             )
         }
@@ -404,6 +406,7 @@ fun saveData(
                 put("place", a.place)
                 put("products", a.products)
                 put("status", a.status)
+                put("deliveryFee", a.deliveryFee)
             }
         )
     }
@@ -563,12 +566,19 @@ LaunchedEffect(
         appointments.filter { it.status == "Завершена" }.forEach { appointment ->
             val recorded = sales.any { it.source == "Встреча" && it.referenceId == appointment.id }
             if (!recorded) {
-                parseProductLines(appointment.products).forEach { (name, quantity) ->
+                val matched = parseProductLines(appointment.products).mapNotNull { (name, quantity) ->
                     val product = products.firstOrNull { it.name.equals(name, ignoreCase = true) }
-                    if (product != null) sales.add(
-                        Sale(nextSaleId++, appointment.date, product.name, quantity,
-                            product.buyPrice, product.sellPrice, 0.0, "Встреча", appointment.client, appointment.id)
-                    )
+                    product?.let { it to quantity }
+                }
+                matched.forEachIndexed { i, (product, quantity) ->
+                    sales.add(Sale(nextSaleId++, appointment.date, product.name, quantity,
+                        product.buyPrice, product.sellPrice,
+                        if (i == 0) appointment.deliveryFee else 0.0,
+                        "Встреча", appointment.client, appointment.id))
+                }
+                if (matched.isEmpty() && appointment.deliveryFee > 0) {
+                    sales.add(Sale(nextSaleId++, appointment.date, "Доставка", 1, 0.0, 0.0,
+                        appointment.deliveryFee, "Встреча", appointment.client, appointment.id))
                 }
             }
         }
@@ -668,7 +678,7 @@ LaunchedEffect(
                     "План" -> PlannerScreen(
                         appointments = appointments,
                         products = products,
-                        onAdd = { client, date, time, place, productsText ->
+                        onAdd = { client, date, time, place, productsText, deliveryFee ->
                             appointments.add(
                                 Appointment(
                                     nextAppointmentId++,
@@ -676,21 +686,46 @@ LaunchedEffect(
                                     date,
                                     time,
                                     place,
-                                    productsText
+                                    productsText,
+                                    deliveryFee = deliveryFee
                                 )
                             )
                         },
                         onUpdate = { updated ->
                             val index = appointments.indexOfFirst { it.id == updated.id }
                             if (index >= 0) appointments[index] = updated
+                            if (updated.status == "Завершена") {
+                                val linked = sales.filter { it.source == "Встреча" && it.referenceId == updated.id }
+                                if (linked.isNotEmpty()) {
+                                    linked.forEachIndexed { i, sale ->
+                                        val saleIndex = sales.indexOfFirst { it.id == sale.id }
+                                        if (saleIndex >= 0) sales[saleIndex] = sale.copy(
+                                            deliveryFee = if (i == 0) updated.deliveryFee else 0.0
+                                        )
+                                    }
+                                } else if (updated.deliveryFee > 0) {
+                                    sales.add(Sale(nextSaleId++, updated.date, "Доставка", 1, 0.0, 0.0,
+                                        updated.deliveryFee, "Встреча", updated.client, updated.id))
+                                }
+                            }
                         },
                         onComplete = { appointment ->
                             val recorded = sales.any { it.source == "Встреча" && it.referenceId == appointment.id }
-                            if (!recorded) parseProductLines(appointment.products).forEach { (name, quantity) ->
-                                val product = products.firstOrNull { it.name.equals(name, ignoreCase = true) }
-                                if (product != null) sales.add(Sale(nextSaleId++, appointment.date,
-                                    product.name, quantity, product.buyPrice, product.sellPrice, 0.0,
-                                    "Встреча", appointment.client, appointment.id))
+                            if (!recorded) {
+                                val matched = parseProductLines(appointment.products).mapNotNull { (name, quantity) ->
+                                    val product = products.firstOrNull { it.name.equals(name, ignoreCase = true) }
+                                    product?.let { it to quantity }
+                                }
+                                matched.forEachIndexed { i, (product, quantity) ->
+                                    sales.add(Sale(nextSaleId++, appointment.date, product.name, quantity,
+                                        product.buyPrice, product.sellPrice,
+                                        if (i == 0) appointment.deliveryFee else 0.0,
+                                        "Встреча", appointment.client, appointment.id))
+                                }
+                                if (matched.isEmpty() && appointment.deliveryFee > 0) {
+                                    sales.add(Sale(nextSaleId++, appointment.date, "Доставка", 1, 0.0, 0.0,
+                                        appointment.deliveryFee, "Встреча", appointment.client, appointment.id))
+                                }
                             }
                             val index = appointments.indexOfFirst { it.id == appointment.id }
                             if (index >= 0) appointments[index] = appointment.copy(status = "Завершена")
@@ -915,7 +950,7 @@ fun MetricCard(
 fun PlannerScreen(
     appointments: SnapshotStateList<Appointment>,
     products: SnapshotStateList<Product>,
-    onAdd: (String, String, String, String, String) -> Unit,
+    onAdd: (String, String, String, String, String, Double) -> Unit,
     onUpdate: (Appointment) -> Unit,
     onComplete: (Appointment) -> Unit,
     remindersEnabled: Boolean,
@@ -1028,7 +1063,7 @@ fun PlannerScreen(
             initial = editing,
             products = products,
             onDismiss = { showForm = false },
-            onSave = { client, date, time, place, productsText ->
+            onSave = { client, date, time, place, productsText, deliveryFee ->
                 TimSalesSounds.play(1)
                 if (editing == null) {
                     onAdd(client, date, time, place, productsText)
@@ -1039,7 +1074,8 @@ fun PlannerScreen(
                             date = date,
                             time = time,
                             place = place,
-                            products = productsText
+                            products = productsText,
+                            deliveryFee = deliveryFee
                         )
                     )
                 }
@@ -1132,6 +1168,9 @@ fun AppointmentCard(
         if (appointment.products.isNotBlank()) {
             Text("Товары: ${appointment.products}", color = Muted)
         }
+        if (appointment.deliveryFee > 0) {
+            Text("Доставка: ${money(appointment.deliveryFee)} AZN", color = Green)
+        }
 
         Text("Статус: ${appointment.status}", color = Muted)
 
@@ -1168,7 +1207,7 @@ fun AppointmentForm(
     initial: Appointment?,
     products: List<Product>,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, String) -> Unit
+    onSave: (String, String, String, String, String, Double) -> Unit
 ) {
     var client by remember(initial) {
         mutableStateOf(initial?.client ?: "")
@@ -1192,6 +1231,9 @@ fun AppointmentForm(
     }
     var productsText by remember(initial) {
         mutableStateOf(initial?.products ?: "")
+    }
+    var deliveryFeeText by remember(initial) {
+        mutableStateOf(initial?.deliveryFee?.let { money(it) } ?: "0")
     }
     var showCalendar by remember { mutableStateOf(false) }
     var showProductPicker by remember { mutableStateOf(false) }
@@ -1316,6 +1358,11 @@ fun AppointmentForm(
                     place = it
                 }
 
+                FormField("Стоимость доставки (AZN)", deliveryFeeText, keyboardType = KeyboardType.Decimal) {
+                    deliveryFeeText = it
+                }
+                Text("Если доставка бесплатная, оставь 0.", color = Muted, fontSize = 12.sp)
+
                 Text("Товары и количество", color = White, fontWeight = FontWeight.SemiBold)
                 OutlinedButton(
                     onClick = { showProductPicker = true },
@@ -1338,13 +1385,15 @@ fun AppointmentForm(
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (client.isNotBlank()) {
+                    val deliveryFee = deliveryFeeText.replace(",", ".").toDoubleOrNull()
+                    if (client.isNotBlank() && deliveryFee != null && deliveryFee >= 0) {
                         onSave(
                             client.trim(),
                             dateText(selectedDate),
                             String.format(Locale.US, "%02d:%02d", selectedHour, selectedMinute),
                             place.trim(),
-                            productsText.trim()
+                            productsText.trim(),
+                            deliveryFee
                         )
                     }
                 }
